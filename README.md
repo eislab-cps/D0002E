@@ -10,6 +10,15 @@ This repository contains ns-3 simulation scripts and lab questions for 6 labs co
 - **Wireshark:** Free packet analyser. Download from <https://www.wireshark.org/download.html>.
 - **ns-3.46:** Network simulator. Setup instructions below.
 
+## Windows users
+
+If you are on Windows, use WSL with Ubuntu and run `ns-3` inside WSL.
+
+- Setup guide: [Windows WSL Setup Guide](WSL_SETUP.md)
+
+This is the recommended student setup because these labs are Linux-based, but
+the generated `.pcap` files still open nicely in Windows Wireshark.
+
 ## ns-3 setup
 
 ### System requirements
@@ -19,7 +28,7 @@ Linux is required. Ubuntu 22.04 or 24.04 are recommended and known to work.
 ### Install dependencies
 
 ```bash
-sudo apt install g++ python3 cmake ninja-build git
+sudo apt install g++ python3 cmake ninja-build git wget
 ```
 
 ### Download and build ns-3
@@ -37,17 +46,15 @@ cd ns-allinone-3.46.1/ns-3.46.1
 
 ### Place the lab files
 
-The simulation files must be placed in the `scratch/d0002e/` directory inside the ns-3 tree. Create the directory and copy the contents of this repository into it:
+Recommended: clone this repository directly into `scratch/d0002e/` inside the
+ns-3 tree.
 
 ```bash
 # From the ns-3 root (ns-allinone-3.46.1/ns-3.46.1/):
-mkdir -p scratch/d0002e
-
-# Copy everything from this repository into that directory:
-cp -r /path/to/this/repo/* scratch/d0002e/
+git clone https://github.com/eislab-cps/D0002E.git scratch/d0002e
 ```
 
-After copying, the structure inside ns-3 should look like:
+After cloning, the structure inside ns-3 should look like:
 
 ```
 ns-3.46.1/scratch/d0002e/
@@ -77,10 +84,21 @@ Then rebuild ns-3 so it picks up the new targets:
 ./ns3 run "scratch/d0002e/lab1-with-guidance --scenario=basic"
 ```
 
+### Student notes
+
+- Run `ns-3` from Linux or WSL, not native Windows.
+- If you are using WSL, keep the project under your Linux home directory
+  (`/home/<user>/...`), not under `/mnt/c/...`.
+- Generated output folders and PCAP files are local artifacts and should not be
+  committed back to the repository.
+- Lab 6 uses the executable name `lab6-with-guidance`, but its TLS capture
+  output is written under `scratch/d0002e/lab 7 output/`.
+
 ## Repository structure
 
 ```
 README.md                              ← This file
+WSL_SETUP.md                           ← Windows + WSL setup guide
 CMakeLists.txt                         ← ns-3 build configuration for all labs
 .gitignore
 lab1-http-dns/
@@ -101,8 +119,6 @@ lab5-link-layer/
 lab6-tls/
   README.md                            ← Lab 6 instructions and questions
   lab6-with-guidance.cc                ← Lab 6 simulation source
-archive/
-  questionsSubset_Eric.md              ← Original question source (not needed for labs)
 ```
 
 ## Lab overview
