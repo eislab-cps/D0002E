@@ -48,19 +48,19 @@
  *
  * 1) LINK STATE vs DISTANCE VECTOR (LS/DV Comparison):
  *    ./ns3 run "scratch/d0002e/lab4-with-guidance --scenario=lsdv --pcap=1"
- *    PCAP: lab 4 output/lsdv/*.pcap
+ *    PCAP: files under lab 4 output/lsdv/
  *    Shows: RIP updates (DV) and GlobalRouting (LS-like) behavior
  *    Wireshark: Filter "rip" for RIP updates, observe TTL changes
  *
  * 2) OSPF-LIKE LINK STATE ADVERTISEMENTS:
  *    ./ns3 run "scratch/d0002e/lab4-with-guidance --scenario=ospf-like --pcap=1"
- *    PCAP: lab 4 output/ospf-like/*.pcap
+ *    PCAP: files under lab 4 output/ospf-like/
  *    Shows: Periodic LSA messages flooded between routers
  *    Wireshark: Filter "udp.port==50001" for LSA packets
  *
  * 3) TTL AND ICMP TIME EXCEEDED:
  *    ./ns3 run "scratch/d0002e/lab4-with-guidance --scenario=ttl-icmp --pcap=1"
- *    PCAP: lab 4 output/ttl-icmp/*.pcap
+ *    PCAP: files under lab 4 output/ttl-icmp/
  *    Shows: ICMP Time Exceeded (Type 11) when TTL expires
  *    Wireshark: Filter "icmp.type==11" for Time Exceeded
  *
@@ -74,20 +74,17 @@
  * NETWORK TOPOLOGY (LSDV and OSPF-like scenarios)
  * =============================================================================
  *
- *                     10.1.2.0/24
- *            +------[R1]------+
- *            |                |
- *   10.1.1.0 |                | 10.1.4.0/24
- *     /24    |                |
- *   [SRC]----+                +----[DST]
- *            |                |     10.1.5.0/24
- *   10.1.3.0 |                |
- *     /24    |                |
- *            +------[R2]------+
- *                     10.1.4.0/24 (alternate)
+ *                 10.1.2.0/24         10.1.6.0/24
+ *        [SRC]---[R1]---[R2]----------------[R4]---[DST]
+ *                  \      |                  /
+ *            10.1.3.0/24  |          10.1.5.0/24 (higher metric)
+ *                    \    | 10.1.4.0/24     /
+ *                     \   |                 /
+ *                      +--[R3]-------------+
  *
- *   Two alternative paths: SRC->R1->DST and SRC->R2->DST
- *   Link R1-DST will fail at t=40s to demonstrate convergence
+ *   Preferred path before failure: SRC->R1->R2->R4->DST
+ *   Backup path after failure:     SRC->R1->R3->R4->DST
+ *   Link R2-R4 will fail at t=40s to demonstrate convergence
  *
  * =============================================================================
  * TTL-ICMP SCENARIO TOPOLOGY
@@ -272,30 +269,37 @@ void RunLsdvScenario(const std::string& outputPath, bool useLinkState)
 
     // =========================================================================
     // Guidance for [C] questions: Node Creation
-    // We create 4 nodes: SRC (source), R1 and R2 (routers), DST (destination)
-    // This topology has two alternative paths for demonstrating convergence
+    // We create two endpoints and four routers.
+    // The routed core has one low-cost path and one higher-cost backup path.
     // =========================================================================
 
     NS_LOG_INFO("Creating nodes...");
     Ptr<Node> src = CreateObject<Node>();
     Ptr<Node> r1 = CreateObject<Node>();
     Ptr<Node> r2 = CreateObject<Node>();
+    Ptr<Node> r3 = CreateObject<Node>();
+    Ptr<Node> r4 = CreateObject<Node>();
     Ptr<Node> dst = CreateObject<Node>();
 
     Names::Add("SRC", src);
     Names::Add("R1", r1);
     Names::Add("R2", r2);
+    Names::Add("R3", r3);
+    Names::Add("R4", r4);
     Names::Add("DST", dst);
 
-    NodeContainer routers(r1, r2);
+    NodeContainer routers(r1, r2, r3, r4);
     NodeContainer endpoints(src, dst);
-    NodeContainer allNodes(src, r1, r2, dst);
+    NodeContainer allNodes(src, r1, r2, r3, r4, dst);
 
     // Node containers for each link
     NodeContainer linkSrcR1(src, r1);
-    NodeContainer linkSrcR2(src, r2);
-    NodeContainer linkR1Dst(r1, dst);
-    NodeContainer linkR2Dst(r2, dst);
+    NodeContainer linkR1R2(r1, r2);
+    NodeContainer linkR1R3(r1, r3);
+    NodeContainer linkR2R3(r2, r3);
+    NodeContainer linkR3R4(r3, r4);
+    NodeContainer linkR2R4(r2, r4);
+    NodeContainer linkR4Dst(r4, dst);
 
     // =========================================================================
     // Guidance for [C] questions: Channel/Link Creation
@@ -309,9 +313,12 @@ void RunLsdvScenario(const std::string& outputPath, bool useLinkState)
     csma.SetChannelAttribute("Delay", TimeValue(MilliSeconds(2)));
 
     NetDeviceContainer devSrcR1 = csma.Install(linkSrcR1);
-    NetDeviceContainer devSrcR2 = csma.Install(linkSrcR2);
-    NetDeviceContainer devR1Dst = csma.Install(linkR1Dst);
-    NetDeviceContainer devR2Dst = csma.Install(linkR2Dst);
+    NetDeviceContainer devR1R2 = csma.Install(linkR1R2);
+    NetDeviceContainer devR1R3 = csma.Install(linkR1R3);
+    NetDeviceContainer devR2R3 = csma.Install(linkR2R3);
+    NetDeviceContainer devR3R4 = csma.Install(linkR3R4);
+    NetDeviceContainer devR2R4 = csma.Install(linkR2R4);
+    NetDeviceContainer devR4Dst = csma.Install(linkR4Dst);
 
     // =========================================================================
     // Guidance for [C]/[B] questions: Routing Protocol Selection
@@ -353,21 +360,15 @@ void RunLsdvScenario(const std::string& outputPath, bool useLinkState)
         // SetInterfaceMetric: Set link costs (affects path selection)
         // =====================================================================
 
-        // Exclude source and destination from RIP (they use static routes)
-        // Interface 0 is loopback, interface 1 is the first real interface
-        ripRouting.ExcludeInterface(src, 1);
-        ripRouting.ExcludeInterface(src, 2);
-        ripRouting.ExcludeInterface(dst, 1);
-        ripRouting.ExcludeInterface(dst, 2);
-
         // =====================================================================
         // Guidance for [C]/[B] questions: Link Metric Configuration
-        // Higher metric = less preferred path
-        // R2 path has metric 5, R1 path has default metric 1
-        // This makes R1 the preferred path initially
+        // The R3-R4 link has higher cost, so traffic initially prefers the
+        // R1-R2-R4 path. When R2-R4 fails, routing converges to R1-R3-R4.
         // =====================================================================
-        ripRouting.SetInterfaceMetric(r2, 1, 5);  // SRC-R2 link cost = 5
-        ripRouting.SetInterfaceMetric(r2, 2, 5);  // R2-DST link cost = 5
+        ripRouting.ExcludeInterface(r1, 1); // Keep the SRC access network static
+        ripRouting.ExcludeInterface(r4, 3); // Keep the DST access network static
+        ripRouting.SetInterfaceMetric(r3, 3, 10);
+        ripRouting.SetInterfaceMetric(r4, 1, 10);
 
         Ipv4ListRoutingHelper listRH;
         listRH.Add(ripRouting, 0);
@@ -393,14 +394,26 @@ void RunLsdvScenario(const std::string& outputPath, bool useLinkState)
     ipv4.SetBase("10.1.1.0", "255.255.255.0");  // SRC-R1 subnet
     Ipv4InterfaceContainer ifSrcR1 = ipv4.Assign(devSrcR1);
 
-    ipv4.SetBase("10.1.2.0", "255.255.255.0");  // SRC-R2 subnet
-    Ipv4InterfaceContainer ifSrcR2 = ipv4.Assign(devSrcR2);
+    ipv4.SetBase("10.1.2.0", "255.255.255.0");  // R1-R2 subnet
+    Ipv4InterfaceContainer ifR1R2 = ipv4.Assign(devR1R2);
 
-    ipv4.SetBase("10.1.3.0", "255.255.255.0");  // R1-DST subnet
-    Ipv4InterfaceContainer ifR1Dst = ipv4.Assign(devR1Dst);
+    ipv4.SetBase("10.1.3.0", "255.255.255.0");  // R1-R3 subnet
+    Ipv4InterfaceContainer ifR1R3 = ipv4.Assign(devR1R3);
 
-    ipv4.SetBase("10.1.4.0", "255.255.255.0");  // R2-DST subnet
-    Ipv4InterfaceContainer ifR2Dst = ipv4.Assign(devR2Dst);
+    ipv4.SetBase("10.1.4.0", "255.255.255.0");  // R2-R3 subnet
+    Ipv4InterfaceContainer ifR2R3 = ipv4.Assign(devR2R3);
+
+    ipv4.SetBase("10.1.5.0", "255.255.255.0");  // R3-R4 subnet (higher metric)
+    Ipv4InterfaceContainer ifR3R4 = ipv4.Assign(devR3R4);
+
+    ipv4.SetBase("10.1.6.0", "255.255.255.0");  // R2-R4 subnet
+    Ipv4InterfaceContainer ifR2R4 = ipv4.Assign(devR2R4);
+
+    ipv4.SetBase("10.1.7.0", "255.255.255.0");  // R4-DST subnet
+    Ipv4InterfaceContainer ifR4Dst = ipv4.Assign(devR4Dst);
+
+    ifR3R4.SetMetric(0, 10);
+    ifR3R4.SetMetric(1, 10);
 
     // =========================================================================
     // Configure static routes for endpoints (in DV mode) or global routes
@@ -420,7 +433,7 @@ void RunLsdvScenario(const std::string& outputPath, bool useLinkState)
 
         staticRouting = Ipv4RoutingHelper::GetRouting<Ipv4StaticRouting>(
             dst->GetObject<Ipv4>()->GetRoutingProtocol());
-        staticRouting->SetDefaultRoute("10.1.3.1", 1);  // Via R1
+        staticRouting->SetDefaultRoute("10.1.7.1", 1);  // Via R4
     }
 
     // =========================================================================
@@ -430,7 +443,7 @@ void RunLsdvScenario(const std::string& outputPath, bool useLinkState)
     // =========================================================================
 
     NS_LOG_INFO("Creating ping application...");
-    PingHelper ping(ifR2Dst.GetAddress(1));  // Ping to DST's address on R2-DST link
+    PingHelper ping(ifR4Dst.GetAddress(1));  // Ping to DST's access-network address
     ping.SetAttribute("Interval", TimeValue(Seconds(1)));
     ping.SetAttribute("Size", UintegerValue(64));
     ping.SetAttribute("VerboseMode", EnumValue(Ping::VerboseMode::VERBOSE));
@@ -441,15 +454,15 @@ void RunLsdvScenario(const std::string& outputPath, bool useLinkState)
 
     // =========================================================================
     // Guidance for [C]/[B] questions: Link Failure Event
-    // At t=40s, we bring down the R1-DST link
+    // At t=40s, we bring down the preferred R2-R4 link
     // This triggers routing convergence:
     //   - LS mode: SPF recalculation, fast convergence
     //   - DV mode: RIP updates propagate, slower convergence
     // =========================================================================
 
     NS_LOG_INFO("Scheduling link failure at t=40s...");
-    // R1's interface to DST is interface 2, DST's interface to R1 is interface 1
-    Simulator::Schedule(Seconds(40), &TearDownLink, r1, dst, 2, 1);
+    // R2's interface to R4 is interface 3, R4's interface to R2 is interface 2
+    Simulator::Schedule(Seconds(40), &TearDownLink, r2, r4, 3, 2);
 
     // =========================================================================
     // Guidance for [W] questions: Routing Table Logging
@@ -481,9 +494,12 @@ void RunLsdvScenario(const std::string& outputPath, bool useLinkState)
     if (g_pcapEnabled)
     {
         csma.EnablePcap(outputPath + "lsdv-src-r1", devSrcR1.Get(0), true);
-        csma.EnablePcap(outputPath + "lsdv-src-r2", devSrcR2.Get(0), true);
-        csma.EnablePcap(outputPath + "lsdv-r1-dst", devR1Dst.Get(0), true);
-        csma.EnablePcap(outputPath + "lsdv-r2-dst", devR2Dst.Get(0), true);
+        csma.EnablePcap(outputPath + "lsdv-r1-r2", devR1R2.Get(0), true);
+        csma.EnablePcap(outputPath + "lsdv-r1-r3", devR1R3.Get(0), true);
+        csma.EnablePcap(outputPath + "lsdv-r2-r3", devR2R3.Get(0), true);
+        csma.EnablePcap(outputPath + "lsdv-r3-r4", devR3R4.Get(0), true);
+        csma.EnablePcap(outputPath + "lsdv-r2-r4", devR2R4.Get(0), true);
+        csma.EnablePcap(outputPath + "lsdv-r4-dst", devR4Dst.Get(0), true);
     }
 
     // Write topology information
@@ -491,18 +507,23 @@ void RunLsdvScenario(const std::string& outputPath, bool useLinkState)
     topoInfo << "LSDV Scenario Topology - " << modeStr << "\n";
     topoInfo << "=========================================\n\n";
     topoInfo << "Nodes:\n";
-    topoInfo << "  SRC: 10.1.1.1 (to R1), 10.1.2.1 (to R2)\n";
-    topoInfo << "  R1:  10.1.1.2 (to SRC), 10.1.3.1 (to DST)\n";
-    topoInfo << "  R2:  10.1.2.2 (to SRC), 10.1.4.1 (to DST)\n";
-    topoInfo << "  DST: 10.1.3.2 (to R1), 10.1.4.2 (to R2)\n\n";
+    topoInfo << "  SRC: 10.1.1.1 (to R1)\n";
+    topoInfo << "  R1:  10.1.1.2 (to SRC), 10.1.2.1 (to R2), 10.1.3.1 (to R3)\n";
+    topoInfo << "  R2:  10.1.2.2 (to R1), 10.1.4.1 (to R3), 10.1.6.1 (to R4)\n";
+    topoInfo << "  R3:  10.1.3.2 (to R1), 10.1.4.2 (to R2), 10.1.5.1 (to R4)\n";
+    topoInfo << "  R4:  10.1.5.2 (to R3), 10.1.6.2 (to R2), 10.1.7.1 (to DST)\n";
+    topoInfo << "  DST: 10.1.7.2 (to R4)\n\n";
     topoInfo << "Links:\n";
     topoInfo << "  SRC-R1: 10.1.1.0/24 (metric 1)\n";
-    topoInfo << "  SRC-R2: 10.1.2.0/24 (metric " << (useLinkState ? "1" : "5") << ")\n";
-    topoInfo << "  R1-DST: 10.1.3.0/24 (metric 1) - FAILS at t=40s\n";
-    topoInfo << "  R2-DST: 10.1.4.0/24 (metric " << (useLinkState ? "1" : "5") << ")\n\n";
+    topoInfo << "  R1-R2:  10.1.2.0/24 (metric 1)\n";
+    topoInfo << "  R1-R3:  10.1.3.0/24 (metric 1)\n";
+    topoInfo << "  R2-R3:  10.1.4.0/24 (metric 1)\n";
+    topoInfo << "  R3-R4:  10.1.5.0/24 (metric 10, backup path)\n";
+    topoInfo << "  R2-R4:  10.1.6.0/24 (metric 1, FAILS at t=40s)\n";
+    topoInfo << "  R4-DST: 10.1.7.0/24 (metric 1)\n\n";
     topoInfo << "Events:\n";
-    topoInfo << "  t=5s:  Ping starts (SRC -> DST)\n";
-    topoInfo << "  t=40s: R1-DST link fails\n";
+    topoInfo << "  t=5s:  Ping starts (SRC -> 10.1.7.2)\n";
+    topoInfo << "  t=40s: R2-R4 link fails\n";
     topoInfo << "  t=90s: Simulation ends\n";
     WriteTopologyInfo(outputPath, topoInfo.str());
 
@@ -1092,8 +1113,7 @@ int main(int argc, char* argv[])
         if (g_pcapEnabled)
         {
             // PCAP files use node names: prefix-NodeName-DeviceIndex.pcap
-            // Verify src-r2 path which has traffic (GlobalRouting uses that path)
-            success = success && VerifyPcapFile(outputPath + "lsdv-src-r2-SRC-1.pcap");
+            success = success && VerifyPcapFile(outputPath + "lsdv-src-r1-SRC-0.pcap");
         }
     }
     else if (scenario == "ospf-like")

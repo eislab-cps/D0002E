@@ -1,0 +1,43 @@
+# Student-facing repository:
+# keep source, READMEs, and lab code under version control, but never commit
+# generated captures, output folders, or local build/editor artifacts.
+#
+# When this repo is placed in ns-3 as scratch/d0002e/, the simulations write
+# output folders at the repo root. Re-run labs locally instead of committing
+# generated PCAPs.
+#
+# Lab 6 TLS still writes captures under "lab 7 output/" for historical naming
+# compatibility, so both lab 6 and lab 7 output directory names are ignored.
+
+# Generated lab outputs
+/lab 1 output/
+/lab 2 output/
+/lab 3 output/
+/lab 4 output/
+/lab 5 output/
+/lab 6 output/
+/lab 7 output/
+
+# Stray packet captures or Wireshark exports saved outside the output folders
+*.pcap
+*.pcapng
+
+# Local build artifacts if someone configures/builds in this repo by mistake
+/build/
+/cmake-build-*/
+/CMakeCache.txt
+/CMakeFiles/
+/Testing/
+/build.ninja
+/cmake_install.cmake
+/compile_commands.json
+/.ninja_*
+/.lock-*
+
+# Editor / OS noise
+/.idea/
+/.vscode/
+*.swp
+*.swo
+*~
+.DS_Store

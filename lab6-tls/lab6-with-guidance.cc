@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /**
- * Lab 7: Transport Layer Security (TLS)
+ * Lab 6: Transport Layer Security (TLS)
  * D0002E – Computer Networks
  * Luleå University of Technology
  *
@@ -15,11 +15,11 @@
  *   ./ns3 build
  *
  * Run:
- *   ./ns3 run "scratch/d0002e/lab7-with-guidance --scenario=handshake --pcap=1"
- *   ./ns3 run "scratch/d0002e/lab7-with-guidance --scenario=certificate --pcap=1"
- *   ./ns3 run "scratch/d0002e/lab7-with-guidance --scenario=data --pcap=1"
- *   ./ns3 run "scratch/d0002e/lab7-with-guidance --scenario=cipher --pcap=1"
- *   ./ns3 run "scratch/d0002e/lab7-with-guidance --scenario=tls-tcp --pcap=1"
+ *   ./ns3 run "scratch/d0002e/lab6-with-guidance --scenario=handshake --pcap=1"
+ *   ./ns3 run "scratch/d0002e/lab6-with-guidance --scenario=certificate --pcap=1"
+ *   ./ns3 run "scratch/d0002e/lab6-with-guidance --scenario=data --pcap=1"
+ *   ./ns3 run "scratch/d0002e/lab6-with-guidance --scenario=cipher --pcap=1"
+ *   ./ns3 run "scratch/d0002e/lab6-with-guidance --scenario=tls-tcp --pcap=1"
  *
  * Output: scratch/d0002e/lab 7 output/<scenario>/
  *
