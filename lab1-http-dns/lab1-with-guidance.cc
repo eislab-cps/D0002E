@@ -1,6 +1,7 @@
 /*
  * =============================================================================
  * ns-3 Wireshark Lab Simulation - HTTP and DNS
+ * Extended with seed-based randomization and optional NetAnim XML output
  * =============================================================================
  *
  * This script generates PCAP files for Wireshark HTTP and DNS lab exercises.
@@ -11,45 +12,56 @@
  * =============================================================================
  *
  * Build:
- *   ./ns3 build scratch/d0002e/lab1
+ *   ./ns3 build scratch/d0002e/lab1-with-guidance
  *
  * Run scenarios (outputs go to "scratch/d0002e/lab 1 output/"):
  *
  * 1) BASIC HTTP GET/RESPONSE (HTTP Lab Section 1):
- *    ./ns3 run "scratch/d0002e/lab1 --scenario=basic"
- *    PCAP: client-*.pcap - Shows GET request and 200 OK response
+ *    ./ns3 run "scratch/d0002e/lab1-with-guidance --scenario=basic"
+ *    ./ns3 run "scratch/d0002e/lab1-with-guidance --scenario=basic --seed=42"
+ *    PCAP: seed42-client-*.pcap - Shows GET request and 200 OK response
  *
  * 2) CONDITIONAL GET (HTTP Lab Section 2):
- *    ./ns3 run "scratch/d0002e/lab1 --scenario=conditional"
+ *    ./ns3 run "scratch/d0002e/lab1-with-guidance --scenario=conditional"
  *    PCAP: client-*.pcap - Shows first GET with 200 OK + Last-Modified,
  *          then second GET with If-Modified-Since and 304 Not Modified
  *
  * 3) LONG DOCUMENT (HTTP Lab Section 3):
- *    ./ns3 run "scratch/d0002e/lab1 --scenario=long"
+ *    ./ns3 run "scratch/d0002e/lab1-with-guidance --scenario=long"
  *    PCAP: client-*.pcap - Shows GET and response spanning multiple TCP segments
  *
  * 4) EMBEDDED OBJECTS (HTTP Lab Section 4):
- *    ./ns3 run "scratch/d0002e/lab1 --scenario=embedded --parallel=false"
- *    ./ns3 run "scratch/d0002e/lab1 --scenario=embedded --parallel=true"
+ *    ./ns3 run "scratch/d0002e/lab1-with-guidance --scenario=embedded --parallel=false"
+ *    ./ns3 run "scratch/d0002e/lab1-with-guidance --scenario=embedded --parallel=true"
  *    PCAP: client-*.pcap - Shows base HTML fetch, then image fetches from
  *          two different servers (serial or parallel)
  *
  * 5) HTTP AUTHENTICATION (HTTP Lab Section 5):
- *    ./ns3 run "scratch/d0002e/lab1 --scenario=auth"
+ *    ./ns3 run "scratch/d0002e/lab1-with-guidance --scenario=auth"
  *    PCAP: client-*.pcap - Shows GET, 401 Unauthorized with WWW-Authenticate,
  *          then GET with Authorization: Basic header, then 200 OK
  *
  * 6) DNS QUERIES (DNS Lab):
- *    ./ns3 run "scratch/d0002e/lab1 --scenario=dns"
- *    PCAP: client-*.pcap, dns-server-*.pcap - Shows Type A and Type NS queries
+ *    ./ns3 run "scratch/d0002e/lab1-with-guidance --scenario=dns"
+ *    PCAP: seed42-client-*.pcap, seed42-dns-server-*.pcap - Shows Type A and Type NS queries
  *
  * 7) ALL SCENARIOS:
- *    ./ns3 run "scratch/d0002e/lab1 --scenario=all"
+ *    ./ns3 run "scratch/d0002e/lab1-with-guidance --scenario=all"
+ *
+ * TTL experiment:
+ *    ./ns3 run "scratch/d0002e/lab1-with-guidance --scenario=all --dnsTTL=300 --seed=42"
+ *    ./ns3 run "scratch/d0002e/lab1-with-guidance --scenario=all --dnsTTL=60 --seed=42"
+ *    ./ns3 run "scratch/d0002e/lab1-with-guidance --scenario=all --dnsTTL=10 --seed=42"
+ *    ./ns3 run "scratch/d0002e/lab1-with-guidance --scenario=all --dnsTTL=1 --seed=42"
  *
  * Additional options:
  *   --verbose=true      Enable detailed logging
  *   --dnsTTL=300        DNS cache TTL in seconds (default: 300)
  *   --mss=536           TCP MSS for long document test (default: 536)
+ *   --seed=100          RNG seed 1-100 (use your lab group number)
+ *
+ * If ns-3 was configured with the optional netanim module, the script also
+ * writes seed-prefixed XML output for NetAnim, e.g. "seed42-netanim.xml".
  *
  * =============================================================================
  * NETWORK TOPOLOGY
@@ -80,6 +92,13 @@
 #include "ns3/core-module.h"
 #include "ns3/csma-module.h"
 #include "ns3/internet-module.h"
+#if __has_include("ns3/netanim-module.h")
+#include "ns3/mobility-module.h"
+#include "ns3/netanim-module.h"
+#define D0002E_HAS_NETANIM 1
+#else
+#define D0002E_HAS_NETANIM 0
+#endif
 #include "ns3/network-module.h"
 
 #include <filesystem>
@@ -112,6 +131,12 @@ static uint32_t g_tcpMss = 536;
 // Relevant to Embedded Objects: g_parallelDownload controls serial vs parallel fetching
 // =============================================================================
 static bool g_parallelDownload = false;
+
+// =============================================================================
+// Relevant to reproducibility: g_seed varies timing slightly and changes the
+// starting DNS transaction ID so each lab group gets a distinct trace.
+// =============================================================================
+static uint32_t g_seed = 100;
 
 // =============================================================================
 // Relevant to HTTP Authentication: Base64 encoding for HTTP Basic Auth credentials
@@ -636,6 +661,10 @@ class DnsClientApp : public Application
 
     // Relevant to Basic DNS Queries: SetDnsServer configures destination IP for queries
     void SetDnsServer(Address addr) { m_dnsServer = addr; }
+
+    // Relevant to DNS and HTTP Interaction: seed-specific runs can start from a
+    // different transaction ID while keeping deterministic behavior.
+    void SetInitialTransId(uint16_t id) { m_nextTransId = id; }
 
     typedef Callback<void, std::string, std::vector<std::string>> ResolveCallback;
 
@@ -1337,7 +1366,10 @@ class HttpClientApp : public Application
 // Relevant to Basic HTTP GET/Response: SetupBasicScenario configures single object fetch
 // Only one TCP connection opened because single object with no embedded resources
 // =============================================================================
-void SetupBasicScenario(Ptr<HttpServerApp> server1, Ptr<HttpClientApp> client, Ptr<DnsClientApp> dnsClient)
+void SetupBasicScenario(Ptr<HttpServerApp> server1,
+                        Ptr<HttpClientApp> client,
+                        Ptr<DnsClientApp> dnsClient,
+                        double jitter)
 {
     // Simple HTML file
     std::string htmlBody =
@@ -1353,7 +1385,7 @@ void SetupBasicScenario(Ptr<HttpServerApp> server1, Ptr<HttpClientApp> client, P
                         "text/html", "Mon, 27 Jan 2025 11:30:00 GMT");
 
     // Client fetches the page - single request
-    client->ScheduleFetch(Seconds(1.0), "www.example.com",
+    client->ScheduleFetch(Seconds(1.0 + jitter), "www.example.com",
                           "/wireshark-labs/HTTP-wireshark-file1.html");
 }
 
@@ -1361,7 +1393,10 @@ void SetupBasicScenario(Ptr<HttpServerApp> server1, Ptr<HttpClientApp> client, P
 // Relevant to Conditional GET: SetupConditionalScenario demonstrates cache validation
 // First request gets full content, second sends If-Modified-Since and gets 304
 // =============================================================================
-void SetupConditionalScenario(Ptr<HttpServerApp> server1, Ptr<HttpClientApp> client, Ptr<DnsClientApp> dnsClient)
+void SetupConditionalScenario(Ptr<HttpServerApp> server1,
+                              Ptr<HttpClientApp> client,
+                              Ptr<DnsClientApp> dnsClient,
+                              double jitter)
 {
     // Five-line HTML file
     std::string htmlBody =
@@ -1383,12 +1418,12 @@ void SetupConditionalScenario(Ptr<HttpServerApp> server1, Ptr<HttpClientApp> cli
                         "text/html", lastModified);
 
     // First request - gets full content with Last-Modified header in response
-    client->ScheduleFetch(Seconds(1.0), "www.example.com",
+    client->ScheduleFetch(Seconds(1.0 + jitter), "www.example.com",
                           "/wireshark-labs/HTTP-wireshark-file2.html");
 
     // Relevant to Conditional GET: Second request sends If-Modified-Since (cache hit triggers this)
     // Should get 304 Not Modified because timestamp matches
-    client->ScheduleFetch(Seconds(3.0), "www.example.com",
+    client->ScheduleFetch(Seconds(3.0 + jitter), "www.example.com",
                           "/wireshark-labs/HTTP-wireshark-file2.html",
                           lastModified);  // If-Modified-Since header value
 }
@@ -1397,7 +1432,10 @@ void SetupConditionalScenario(Ptr<HttpServerApp> server1, Ptr<HttpClientApp> cli
 // Relevant to Long Document Retrieval: Large response spans multiple TCP segments
 // TCP handles segmentation automatically - application doesn't explicitly segment
 // =============================================================================
-void SetupLongDocumentScenario(Ptr<HttpServerApp> server1, Ptr<HttpClientApp> client, Ptr<DnsClientApp> dnsClient)
+void SetupLongDocumentScenario(Ptr<HttpServerApp> server1,
+                               Ptr<HttpClientApp> client,
+                               Ptr<DnsClientApp> dnsClient,
+                               double jitter)
 {
     // Relevant to Long Document Retrieval: Create a long document (~5000 bytes)
     // Response size exceeds TCP MSS, causing multiple segments
@@ -1472,7 +1510,7 @@ void SetupLongDocumentScenario(Ptr<HttpServerApp> server1, Ptr<HttpClientApp> cl
     server1->AddContent("/wireshark-labs/HTTP-wireshark-file3.html", htmlBody,
                         "text/html", "Mon, 27 Jan 2025 10:00:00 GMT");
 
-    client->ScheduleFetch(Seconds(1.0), "www.example.com",
+    client->ScheduleFetch(Seconds(1.0 + jitter), "www.example.com",
                           "/wireshark-labs/HTTP-wireshark-file3.html");
 }
 
@@ -1481,7 +1519,9 @@ void SetupLongDocumentScenario(Ptr<HttpServerApp> server1, Ptr<HttpClientApp> cl
 // Relevant to Embedded Objects: g_parallelDownload controls serial vs parallel fetching
 // =============================================================================
 void SetupEmbeddedScenario(Ptr<HttpServerApp> server1, Ptr<HttpServerApp> server2,
-                            Ptr<HttpClientApp> client, Ptr<DnsClientApp> dnsClient)
+                           Ptr<HttpClientApp> client,
+                           Ptr<DnsClientApp> dnsClient,
+                           double jitter)
 {
     // Relevant to Embedded Objects: Embedded URLs defined in HTML content
     // Base HTML with embedded objects from two servers
@@ -1516,7 +1556,7 @@ void SetupEmbeddedScenario(Ptr<HttpServerApp> server1, Ptr<HttpServerApp> server
     server2->AddContent("/images/cover.jpg", jpgData, "image/jpeg", "Mon, 27 Jan 2025 07:00:00 GMT");
 
     // First: fetch base HTML
-    client->ScheduleFetch(Seconds(1.0), "www.example.com",
+    client->ScheduleFetch(Seconds(1.0 + jitter), "www.example.com",
                           "/wireshark-labs/HTTP-wireshark-file4.html");
 
     // Relevant to Embedded Objects: Client discovers embedded objects by parsing HTML
@@ -1525,14 +1565,14 @@ void SetupEmbeddedScenario(Ptr<HttpServerApp> server1, Ptr<HttpServerApp> server
     if (g_parallelDownload)
     {
         // Relevant to Embedded Objects: Parallel - multiple TCP sockets and concurrent requests
-        client->ScheduleFetch(Seconds(2.5), "www.example.com", "/images/logo.png");
-        client->ScheduleFetch(Seconds(2.5), "www.images.example.com", "/images/cover.jpg");
+        client->ScheduleFetch(Seconds(2.5 + jitter), "www.example.com", "/images/logo.png");
+        client->ScheduleFetch(Seconds(2.5 + jitter), "www.images.example.com", "/images/cover.jpg");
     }
     else
     {
         // Relevant to Embedded Objects: Serial - one after another (default)
-        client->ScheduleFetch(Seconds(2.5), "www.example.com", "/images/logo.png");
-        client->ScheduleFetch(Seconds(4.0), "www.images.example.com", "/images/cover.jpg");
+        client->ScheduleFetch(Seconds(2.5 + jitter), "www.example.com", "/images/logo.png");
+        client->ScheduleFetch(Seconds(4.0 + jitter), "www.images.example.com", "/images/cover.jpg");
     }
 }
 
@@ -1540,7 +1580,10 @@ void SetupEmbeddedScenario(Ptr<HttpServerApp> server1, Ptr<HttpServerApp> server
 // Relevant to HTTP Authentication: First request without auth gets 401
 // Second request includes Authorization header and succeeds
 // =============================================================================
-void SetupAuthScenario(Ptr<HttpServerApp> server1, Ptr<HttpClientApp> client, Ptr<DnsClientApp> dnsClient)
+void SetupAuthScenario(Ptr<HttpServerApp> server1,
+                       Ptr<HttpClientApp> client,
+                       Ptr<DnsClientApp> dnsClient,
+                       double jitter)
 {
     // Protected content
     std::string htmlBody =
@@ -1563,11 +1606,11 @@ void SetupAuthScenario(Ptr<HttpServerApp> server1, Ptr<HttpClientApp> client, Pt
     server1->SetRequireAuth(true, "Protected Area", credentials);
 
     // First request without auth - should get 401
-    client->ScheduleFetch(Seconds(1.0), "www.example.com",
+    client->ScheduleFetch(Seconds(1.0 + jitter), "www.example.com",
                           "/protected_pages/HTTP-wireshark-file5.html");
 
     // Relevant to HTTP Authentication: Second request adds Authorization header after 401
-    client->ScheduleFetch(Seconds(3.0), "www.example.com",
+    client->ScheduleFetch(Seconds(3.0 + jitter), "www.example.com",
                           "/protected_pages/HTTP-wireshark-file5.html",
                           "",  // No If-Modified-Since
                           "Basic " + credentials);  // Authorization header
@@ -1596,24 +1639,24 @@ static void DoDnsResolve(Ptr<DnsClientApp> dnsClient, std::string hostname, uint
 // Relevant to Basic DNS Queries: SetupDnsScenario demonstrates DNS query types
 // Relevant to DNS Caching: Repeated query for same hostname shows cache behavior
 // =============================================================================
-void SetupDnsScenario(Ptr<DnsClientApp> dnsClient)
+void SetupDnsScenario(Ptr<DnsClientApp> dnsClient, double jitter)
 {
     // Various DNS queries to demonstrate DNS lab concepts
 
     // Relevant to Query Types: Type A query for IPv4 address
-    Simulator::Schedule(Seconds(1.0), &DoDnsResolve, dnsClient,
+    Simulator::Schedule(Seconds(1.0 + jitter), &DoDnsResolve, dnsClient,
                         std::string("www.ietf.org"), DNS_TYPE_A);
 
     // Another Type A query
-    Simulator::Schedule(Seconds(2.0), &DoDnsResolve, dnsClient,
+    Simulator::Schedule(Seconds(2.0 + jitter), &DoDnsResolve, dnsClient,
                         std::string("www.mit.edu"), DNS_TYPE_A);
 
     // Relevant to Query Types: Type NS query for nameservers
-    Simulator::Schedule(Seconds(3.0), &DoDnsResolve, dnsClient,
+    Simulator::Schedule(Seconds(3.0 + jitter), &DoDnsResolve, dnsClient,
                         std::string("mit.edu"), DNS_TYPE_NS);
 
     // Relevant to DNS Caching: Cached query - should hit cache (no new DNS query sent)
-    Simulator::Schedule(Seconds(4.0), &DoDnsResolve, dnsClient,
+    Simulator::Schedule(Seconds(4.0 + jitter), &DoDnsResolve, dnsClient,
                         std::string("www.mit.edu"), DNS_TYPE_A);
 }
 
@@ -1632,10 +1675,33 @@ int main(int argc, char* argv[])
     // Relevant to Embedded Objects: --parallel controls serial vs parallel downloads
     cmd.AddValue("parallel", "Parallel download for embedded scenario", g_parallelDownload);
     // Relevant to DNS Caching: --dnsTTL controls cache expiration
-    cmd.AddValue("dnsTTL", "DNS cache TTL in seconds", g_dnsTTL);
+    cmd.AddValue("dnsTTL",
+                 "DNS cache TTL in seconds (default 300; try 60, 10, or 1 for the TTL experiment)",
+                 g_dnsTTL);
     // Relevant to Long Document Retrieval: --mss affects TCP segmentation
     cmd.AddValue("mss", "TCP MSS for testing", g_tcpMss);
+    // Relevant to reproducibility: use the lab group number as the seed.
+    cmd.AddValue("seed", "RNG seed for reproducible runs (1-100, use your lab group number)", g_seed);
     cmd.Parse(argc, argv);
+
+    if (g_seed < 1)
+    {
+        g_seed = 1;
+    }
+    if (g_seed > 100)
+    {
+        g_seed = 100;
+    }
+
+    RngSeedManager::SetSeed(g_seed);
+    RngSeedManager::SetRun(g_seed);
+
+#if D0002E_HAS_NETANIM
+    PacketMetadata::Enable();
+#endif
+
+    uint16_t dnsInitialId = static_cast<uint16_t>(0x1000u + (g_seed * 37u) % 0xef00u);
+    double seedJitter = (g_seed % 20u) * 0.005;
 
     if (verbose)
     {
@@ -1646,6 +1712,9 @@ int main(int argc, char* argv[])
     std::filesystem::create_directories(outputDir);
     NS_LOG_INFO("Output directory: " << outputDir);
     NS_LOG_INFO("Scenario: " << scenario);
+    NS_LOG_INFO("Seed: " << g_seed << "  dnsInitialId=0x" << std::hex << dnsInitialId
+                         << std::dec << "  jitter=" << seedJitter << "s"
+                         << "  dnsTTL=" << g_dnsTTL << "s");
 
     // =========================================================================
     // Create topology
@@ -1690,6 +1759,18 @@ int main(int argc, char* argv[])
     NS_LOG_INFO("HTTP Server 1: " << interfaces.GetAddress(2));
     NS_LOG_INFO("HTTP Server 2: " << interfaces.GetAddress(3));
 
+#if D0002E_HAS_NETANIM
+    MobilityHelper mobility;
+    mobility.SetMobilityModel("ns3::ConstantPositionMobilityModel");
+    Ptr<ListPositionAllocator> posAlloc = CreateObject<ListPositionAllocator>();
+    posAlloc->Add(Vector(10.0, 50.0, 0.0));
+    posAlloc->Add(Vector(50.0, 90.0, 0.0));
+    posAlloc->Add(Vector(90.0, 50.0, 0.0));
+    posAlloc->Add(Vector(50.0, 10.0, 0.0));
+    mobility.SetPositionAllocator(posAlloc);
+    mobility.Install(nodes);
+#endif
+
     // =========================================================================
     // Create applications
     // =========================================================================
@@ -1720,6 +1801,7 @@ int main(int argc, char* argv[])
     // Relevant to Basic DNS Queries: DNS Client configured to query DNS server at 10.1.1.2:53
     Ptr<DnsClientApp> dnsClient = CreateObject<DnsClientApp>();
     dnsClient->SetDnsServer(InetSocketAddress(interfaces.GetAddress(1), 53));
+    dnsClient->SetInitialTransId(dnsInitialId);
     nodes.Get(0)->AddApplication(dnsClient);
     dnsClient->SetStartTime(Seconds(0.1));
     dnsClient->SetStopTime(Seconds(30.0));
@@ -1751,22 +1833,22 @@ int main(int argc, char* argv[])
 
     if (scenario == "basic" || scenario == "all")
     {
-        SetupBasicScenario(httpServer1, httpClient, dnsClient);
+        SetupBasicScenario(httpServer1, httpClient, dnsClient, seedJitter);
     }
 
     if (scenario == "conditional" || scenario == "all")
     {
-        SetupConditionalScenario(httpServer1, httpClient, dnsClient);
+        SetupConditionalScenario(httpServer1, httpClient, dnsClient, seedJitter);
     }
 
     if (scenario == "long" || scenario == "all")
     {
-        SetupLongDocumentScenario(httpServer1, httpClient, dnsClient);
+        SetupLongDocumentScenario(httpServer1, httpClient, dnsClient, seedJitter);
     }
 
     if (scenario == "embedded" || scenario == "all")
     {
-        SetupEmbeddedScenario(httpServer1, httpServer2, httpClient, dnsClient);
+        SetupEmbeddedScenario(httpServer1, httpServer2, httpClient, dnsClient, seedJitter);
     }
 
     if (scenario == "auth" || scenario == "all")
@@ -1793,11 +1875,11 @@ int main(int argc, char* argv[])
         double baseTime = (scenario == "all") ? 7.0 : 1.0;
 
         // First request without auth - should get 401
-        httpClient->ScheduleFetch(Seconds(baseTime), "www.example.com",
+        httpClient->ScheduleFetch(Seconds(baseTime + seedJitter), "www.example.com",
                                   "/protected_pages/HTTP-wireshark-file5.html");
 
         // Second request with auth - should get 200
-        httpClient->ScheduleFetch(Seconds(baseTime + 2.0), "www.example.com",
+        httpClient->ScheduleFetch(Seconds(baseTime + 2.0 + seedJitter), "www.example.com",
                                   "/protected_pages/HTTP-wireshark-file5.html",
                                   "",  // No If-Modified-Since
                                   "Basic " + credentials);
@@ -1805,25 +1887,45 @@ int main(int argc, char* argv[])
 
     if (scenario == "dns" || scenario == "all")
     {
-        SetupDnsScenario(dnsClient);
+        SetupDnsScenario(dnsClient, seedJitter);
     }
 
     // =========================================================================
     // Enable PCAP tracing
     // =========================================================================
+    std::string seedPrefix = "seed" + std::to_string(g_seed) + "-";
 
     // Promiscuous capture on client - main analysis point
-    csma.EnablePcap(outputDir + "client", devices.Get(0), true);
+    csma.EnablePcap(outputDir + seedPrefix + "client", devices.Get(0), true);
 
     // DNS server capture
-    csma.EnablePcap(outputDir + "dns-server", devices.Get(1), true);
+    csma.EnablePcap(outputDir + seedPrefix + "dns-server", devices.Get(1), true);
 
     // HTTP servers
-    csma.EnablePcap(outputDir + "http-server1", devices.Get(2), true);
-    csma.EnablePcap(outputDir + "http-server2", devices.Get(3), true);
+    csma.EnablePcap(outputDir + seedPrefix + "http-server1", devices.Get(2), true);
+    csma.EnablePcap(outputDir + seedPrefix + "http-server2", devices.Get(3), true);
 
     // All nodes
-    csma.EnablePcapAll(outputDir + "all", true);
+    csma.EnablePcapAll(outputDir + seedPrefix + "all", true);
+
+#if D0002E_HAS_NETANIM
+    std::string animFile = outputDir + seedPrefix + "netanim.xml";
+    AnimationInterface anim(animFile);
+    anim.EnablePacketMetadata(true);
+    anim.EnableIpv4L3ProtocolCounters(Seconds(0), Seconds(35), Seconds(0.5));
+    anim.UpdateNodeDescription(nodes.Get(0), "Client 10.1.1.1");
+    anim.UpdateNodeDescription(nodes.Get(1), "DNS Server 10.1.1.2");
+    anim.UpdateNodeDescription(nodes.Get(2), "HTTP Server 1 10.1.1.3");
+    anim.UpdateNodeDescription(nodes.Get(3), "HTTP Server 2 10.1.1.4");
+    anim.UpdateNodeColor(nodes.Get(0), 50, 130, 255);
+    anim.UpdateNodeColor(nodes.Get(1), 255, 165, 0);
+    anim.UpdateNodeColor(nodes.Get(2), 0, 200, 80);
+    anim.UpdateNodeColor(nodes.Get(3), 0, 140, 60);
+    anim.UpdateNodeSize(nodes.Get(0)->GetId(), 3.0, 3.0);
+    anim.UpdateNodeSize(nodes.Get(1)->GetId(), 2.5, 2.5);
+    anim.UpdateNodeSize(nodes.Get(2)->GetId(), 2.5, 2.5);
+    anim.UpdateNodeSize(nodes.Get(3)->GetId(), 2.5, 2.5);
+#endif
 
     // =========================================================================
     // Run simulation
@@ -1835,8 +1937,13 @@ int main(int argc, char* argv[])
     Simulator::Destroy();
 
     NS_LOG_INFO("=== Simulation Complete ===");
-    NS_LOG_INFO("PCAP files written to: " << outputDir);
-    NS_LOG_INFO("Open with Wireshark and filter by 'http' or 'dns' to analyze traffic.");
+    NS_LOG_INFO("PCAP files written to: " << outputDir << " (prefix: " << seedPrefix << ")");
+#if D0002E_HAS_NETANIM
+    NS_LOG_INFO("NetAnim file written to: " << outputDir + seedPrefix + "netanim.xml");
+#else
+    NS_LOG_INFO("NetAnim XML output disabled: rebuild ns-3 with the netanim module to enable it.");
+#endif
+    NS_LOG_INFO("Open PCAP files with Wireshark and filter by 'http' or 'dns' to analyze traffic.");
 
     return 0;
 }

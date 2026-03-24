@@ -18,24 +18,54 @@ From the ns-3 root directory (`ns-allinone-3.46.1/ns-3.46.1/`):
 # Build
 ./ns3 build
 
+# Use your lab group number as the seed
+GROUP=42
+
 # Run individual scenarios
-./ns3 run "scratch/d0002e/lab1-with-guidance --scenario=basic"
-./ns3 run "scratch/d0002e/lab1-with-guidance --scenario=conditional"
-./ns3 run "scratch/d0002e/lab1-with-guidance --scenario=long"
-./ns3 run "scratch/d0002e/lab1-with-guidance --scenario=embedded --parallel=false"
-./ns3 run "scratch/d0002e/lab1-with-guidance --scenario=embedded --parallel=true"
-./ns3 run "scratch/d0002e/lab1-with-guidance --scenario=auth"
-./ns3 run "scratch/d0002e/lab1-with-guidance --scenario=dns"
+./ns3 run "scratch/d0002e/lab1-with-guidance --scenario=basic --seed=$GROUP"
+./ns3 run "scratch/d0002e/lab1-with-guidance --scenario=conditional --seed=$GROUP"
+./ns3 run "scratch/d0002e/lab1-with-guidance --scenario=long --seed=$GROUP"
+./ns3 run "scratch/d0002e/lab1-with-guidance --scenario=embedded --parallel=false --seed=$GROUP"
+./ns3 run "scratch/d0002e/lab1-with-guidance --scenario=embedded --parallel=true --seed=$GROUP"
+./ns3 run "scratch/d0002e/lab1-with-guidance --scenario=auth --seed=$GROUP"
+./ns3 run "scratch/d0002e/lab1-with-guidance --scenario=dns --seed=$GROUP"
 
 # Run all scenarios at once
-./ns3 run "scratch/d0002e/lab1-with-guidance --scenario=all"
+./ns3 run "scratch/d0002e/lab1-with-guidance --scenario=all --seed=$GROUP"
 ```
 
-Additional options: `--verbose=true`, `--dnsTTL=300`, `--mss=536`.
+Additional options: `--verbose=true`, `--dnsTTL=300`, `--mss=536`, `--seed=<group-number>`.
+
+Use the lab group number as the seed. The same seed gives the same run again, while different seeds produce different packet timings and DNS transaction IDs. Output files are prefixed with the seed, for example `seed42-client-0-0.pcap`.
+
+## Optional NetAnim support
+
+The script always produces the seed-prefixed `.pcap` files. It also produces a seed-prefixed NetAnim XML file such as `seed42-netanim.xml` if your ns-3 build includes the `netanim` module.
+
+To enable that XML output, reconfigure ns-3 once and rebuild:
+
+```bash
+./ns3 configure --enable-examples --enable-modules="applications;antenna;bridge;buildings;config-store;core;csma;csma-layout;energy;flow-monitor;internet;internet-apps;mobility;netanim;network;nix-vector-routing;point-to-point;point-to-point-layout;propagation;spectrum;stats;traffic-control;virtual-net-device;wifi"
+./ns3 build
+```
+
+To install the NetAnim GUI itself on Ubuntu, the following worked for us:
+
+```bash
+sudo apt update && sudo apt install -y build-essential qt5-default qtchooser qt5-qmake qtbase5-dev-tools git && \
+git clone https://gitlab.com/nsnam/netanim.git && \
+cd netanim && \
+qmake NetAnim.pro && \
+make
+```
+
+Then open the generated XML file in NetAnim.
 
 ## How to analyse
 
-Running the simulation produces `.pcap` files in the `scratch/d0002e/lab 1 output/` directory (relative to the ns-3 root). Open these files in Wireshark (File > Open or Ctrl+O). Key capture files include `client-*.pcap`, `dns-server-*.pcap`, and `http-server1-*.pcap`.
+Running the simulation produces `.pcap` files in the `scratch/d0002e/lab 1 output/` directory (relative to the ns-3 root). Open these files in Wireshark (File > Open or Ctrl+O). Key capture files include `seed<group>-client-*.pcap`, `seed<group>-dns-server-*.pcap`, and `seed<group>-http-server1-*.pcap`.
+
+If NetAnim support is enabled, the same directory also contains `seed<group>-netanim.xml`.
 
 ---
 
@@ -91,7 +121,9 @@ Running the simulation produces `.pcap` files in the `scratch/d0002e/lab 1 outpu
 ### DNS and HTTP Interaction
 
 24. [C] How is the Transaction ID generated?
-25. [C] How would lowering TTL affect observed traffic?
+25. [X] How would lowering TTL affect observed traffic?
+
+For question 25, recommended TTL values are `300`, `60`, `10`, and `1` seconds.
 
 ---
 
@@ -102,3 +134,4 @@ Running the simulation produces `.pcap` files in the `scratch/d0002e/lab 1 outpu
 - `[B]` — Answer using both Wireshark and source code
 - `[T]` — Answer from textbook theory
 - `[V]` — Verify Wireshark observations against textbook explanations
+- `[X]` — Answer by reading the simulation source code and experimenting with different input parameters

@@ -142,6 +142,7 @@ Each question is tagged to indicate how it should be answered:
 - `[B]` — Answer using both Wireshark and source code
 - `[T]` — Answer from textbook theory
 - `[V]` — Verify Wireshark observations against textbook explanations
+- `[X]` — Answer by reading the simulation source code and experimenting with different input parameters
 
 ## How to work through a lab
 
