@@ -4,24 +4,33 @@
  * D0002E – Computer Networks
  * Luleå University of Technology
  *
- * Scenarios (use --scenario=<name> --pcap=1):
+ * Extended variant: reproducible seeds + NetAnim XML output.
+ *
+ * Scenarios (use --scenario=<name>):
  *   handshake   – Observe the complete TLS 1.2 handshake message sequence
  *   certificate – Examine the server's X.509 certificate
  *   data        – See that application data is encrypted (opaque in PCAP)
  *   cipher      – Observe the negotiated cipher suite in ServerHello
  *   tls-tcp     – See TLS over TCP; observe TCP RST after server closes
+ *   all         – Run all five scenarios in sequence
+ *
+ * New parameters vs. lab6-with-guidance:
+ *   --seed=<1-100>   Reproducible RNG seed + timing jitter (default 100)
+ *   --pcap=0         Disable PCAP capture (default: enabled)
+ *   --cipher256=1    Use AES-256-SHA256 in ALL scenarios (default: only cipher)
+ *   --tlsTcp=1       Shorthand alias for --scenario=tls-tcp (PDF compatibility)
  *
  * Build:
  *   ./ns3 build
  *
  * Run:
- *   ./ns3 run "scratch/d0002e/lab6-with-guidance --scenario=handshake --pcap=1"
- *   ./ns3 run "scratch/d0002e/lab6-with-guidance --scenario=certificate --pcap=1"
- *   ./ns3 run "scratch/d0002e/lab6-with-guidance --scenario=data --pcap=1"
- *   ./ns3 run "scratch/d0002e/lab6-with-guidance --scenario=cipher --pcap=1"
- *   ./ns3 run "scratch/d0002e/lab6-with-guidance --scenario=tls-tcp --pcap=1"
+ *   ./ns3 run "scratch/d0002e/lab6-with-guidance --scenario=all --seed=42"
+ *   ./ns3 run "scratch/d0002e/lab6-with-guidance --scenario=cipher --seed=1 --cipher256=1"
+ *   ./ns3 run "scratch/d0002e/lab6-with-guidance --scenario=handshake --pcap=0"
  *
- * Output: scratch/d0002e/lab 7 output/<scenario>/
+ * Output: scratch/d0002e/lab 7 output/seed<N>/<scenario>/
+ *   netanim.xml   – Open with NetAnim for animated packet flow
+ *   lab7-<scenario>-*.pcap  – Open with Wireshark
  *
  * Wireshark tips:
  *   - Open the -0-0.pcap file (server-side capture)
@@ -40,6 +49,8 @@
 #include "ns3/internet-module.h"
 #include "ns3/point-to-point-module.h"
 #include "ns3/applications-module.h"
+#include "ns3/mobility-module.h"
+#include "ns3/netanim-module.h"
 
 #include <cstdint>
 #include <cstring>
@@ -133,6 +144,14 @@ static const uint8_t kCertDer[] = {
     0x9a, 0x7d, 0xa3, 0x47, 0xb3, 0xfc, 0x85, 0xfb, 0xb0, 0x7a, 0x4e, 0xe2,
 };
 static const size_t kCertDerLen = 696;
+
+// ===================================================================
+//  GLOBALS  (set from command line in main)
+// ===================================================================
+
+static uint32_t g_seed        = 100;    // --seed=1..100
+static bool     g_pcapEnabled = true;   // --pcap=0 to disable
+static bool     g_cipher256   = false;  // --cipher256=1 forces AES-256 in all scenarios
 
 // ===================================================================
 //  TLS 1.2 RECORD FORMAT  (RFC 5246 §6)
@@ -861,12 +880,39 @@ struct ScenarioCfg
     bool        tlsTcp;    // true → close sockets + generate RST
 };
 
+// -------------------------------------------------------------------
+//  SetupMobility – assign 2D positions for NetAnim
+// -------------------------------------------------------------------
 static void
-RunScenario(const ScenarioCfg &cfg, bool enablePcap)
+SetupMobility(NodeContainer nodes)
 {
-    std::string outDir = "scratch/d0002e/lab 7 output/" + cfg.name + "/";
-    if (enablePcap)
-        std::filesystem::create_directories(outDir);
+    // Topology:  Server (node 0) left, Client (node 1) right
+    //
+    //   (20,50) Server -------- Client (80,50)
+    //
+    MobilityHelper mobility;
+    Ptr<ListPositionAllocator> posAlloc = CreateObject<ListPositionAllocator>();
+    posAlloc->Add(Vector(20.0, 50.0, 0.0)); // node 0: server
+    posAlloc->Add(Vector(80.0, 50.0, 0.0)); // node 1: client
+    mobility.SetPositionAllocator(posAlloc);
+    mobility.SetMobilityModel("ns3::ConstantPositionMobilityModel");
+    mobility.Install(nodes);
+}
+
+// -------------------------------------------------------------------
+//  RunScenario – build topology, run simulation, write NetAnim XML
+// -------------------------------------------------------------------
+static void
+RunScenario(const ScenarioCfg &cfg, uint32_t seed, double jitter,
+            const std::string &animFile)
+{
+    // ---- Reproducibility ----
+    RngSeedManager::SetSeed(seed);
+    RngSeedManager::SetRun(seed);
+
+    std::string outDir = "scratch/d0002e/lab 7 output/seed" +
+                         std::to_string(seed) + "/" + cfg.name + "/";
+    std::filesystem::create_directories(outDir);
 
     // ---- Nodes ----
     NodeContainer nodes;
@@ -888,23 +934,40 @@ RunScenario(const ScenarioCfg &cfg, bool enablePcap)
     // ifaces.GetAddress(0) = 10.7.1.1  (server)
     // ifaces.GetAddress(1) = 10.7.1.2  (client)
 
+    // ---- Mobility (positions for NetAnim) ----
+    SetupMobility(nodes);
+
     // ---- Server application (node 0) ----
     Ptr<TlsServerApp> server = CreateObject<TlsServerApp>();
     server->Configure(cfg.cipher256, cfg.tlsTcp);
     nodes.Get(0)->AddApplication(server);
     server->SetStartTime(Seconds(0.0));
-    server->SetStopTime (Seconds(12.0));
+    server->SetStopTime (Seconds(12.0 + jitter));
 
     // ---- Client application (node 1) ----
+    // jitter shifts the client start time so each seed produces unique timing
     Ptr<TlsClientApp> client = CreateObject<TlsClientApp>();
     client->Setup(ifaces.GetAddress(0), cfg.tlsTcp);
     nodes.Get(1)->AddApplication(client);
-    client->SetStartTime(Seconds(0.0));
-    client->SetStopTime (Seconds(12.0));
+    client->SetStartTime(Seconds(jitter));
+    client->SetStopTime (Seconds(12.0 + jitter));
 
     // ---- PCAP ----
-    if (enablePcap)
+    if (g_pcapEnabled)
         p2p.EnablePcapAll(outDir + "lab7-" + cfg.name, false);
+
+    // ---- NetAnim ----
+    AnimationInterface anim(animFile);
+    anim.EnablePacketMetadata(true);
+    anim.EnableIpv4L3ProtocolCounters(Seconds(0), Seconds(12.0 + jitter));
+
+    // Node labels, colours and sizes
+    anim.UpdateNodeDescription(nodes.Get(0), "Server\n10.7.1.1:50443");
+    anim.UpdateNodeDescription(nodes.Get(1), "Client\n10.7.1.2");
+    anim.UpdateNodeColor(nodes.Get(0), 0,   102, 204); // blue  = server
+    anim.UpdateNodeColor(nodes.Get(1), 204, 102,   0); // amber = client
+    anim.UpdateNodeSize(nodes.Get(0)->GetId(), 3.0, 3.0);
+    anim.UpdateNodeSize(nodes.Get(1)->GetId(), 3.0, 3.0);
 
     Simulator::Run();
     Simulator::Destroy();
@@ -915,7 +978,7 @@ RunScenario(const ScenarioCfg &cfg, bool enablePcap)
 // ===================================================================
 
 static void
-RunHandshake(bool pcap)
+RunHandshake(uint32_t seed, double jitter)
 {
     // -------------------------------------------------------------------
     // Scenario: handshake
@@ -947,11 +1010,14 @@ RunHandshake(bool pcap)
     //       they can encrypt/decrypt application data.
 
     NS_LOG_INFO("=== Scenario: handshake ===");
-    RunScenario({"handshake", false, false}, pcap);
+    std::string outDir = "scratch/d0002e/lab 7 output/seed" +
+                         std::to_string(seed) + "/handshake/";
+    RunScenario({"handshake", g_cipher256, false}, seed, jitter,
+                outDir + "netanim.xml");
 }
 
 static void
-RunCertificate(bool pcap)
+RunCertificate(uint32_t seed, double jitter)
 {
     // -------------------------------------------------------------------
     // Scenario: certificate
@@ -991,11 +1057,14 @@ RunCertificate(bool pcap)
     //       fast symmetric AES cipher derived from it.
 
     NS_LOG_INFO("=== Scenario: certificate ===");
-    RunScenario({"certificate", false, false}, pcap);
+    std::string outDir = "scratch/d0002e/lab 7 output/seed" +
+                         std::to_string(seed) + "/certificate/";
+    RunScenario({"certificate", g_cipher256, false}, seed, jitter,
+                outDir + "netanim.xml");
 }
 
 static void
-RunData(bool pcap)
+RunData(uint32_t seed, double jitter)
 {
     // -------------------------------------------------------------------
     // Scenario: data
@@ -1029,11 +1098,14 @@ RunData(bool pcap)
     //       the handshake.  The session keys never appear on the wire.
 
     NS_LOG_INFO("=== Scenario: data ===");
-    RunScenario({"data", false, false}, pcap);
+    std::string outDir = "scratch/d0002e/lab 7 output/seed" +
+                         std::to_string(seed) + "/data/";
+    RunScenario({"data", g_cipher256, false}, seed, jitter,
+                outDir + "netanim.xml");
 }
 
 static void
-RunCipher(bool pcap)
+RunCipher(uint32_t seed, double jitter)
 {
     // -------------------------------------------------------------------
     // Scenario: cipher
@@ -1070,11 +1142,14 @@ RunCipher(bool pcap)
     //       faster for large payloads.
 
     NS_LOG_INFO("=== Scenario: cipher ===");
-    RunScenario({"cipher", true, false}, pcap);
+    std::string outDir = "scratch/d0002e/lab 7 output/seed" +
+                         std::to_string(seed) + "/cipher/";
+    // cipher scenario always uses AES-256 regardless of --cipher256 flag
+    RunScenario({"cipher", true, false}, seed, jitter, outDir + "netanim.xml");
 }
 
 static void
-RunTlsTcp(bool pcap)
+RunTlsTcp(uint32_t seed, double jitter)
 {
     // -------------------------------------------------------------------
     // Scenario: tls-tcp
@@ -1082,19 +1157,20 @@ RunTlsTcp(bool pcap)
     // Demonstrate that TLS depends on TCP and observe a TCP RST.
     //
     // Timeline:
-    //   t = 1.0 s  TCP SYN (client → server)
-    //   t ≈ 1.0 s  TCP SYN-ACK + ACK (3-way handshake completes)
-    //   t ≈ 1.0 s  TLS handshake begins: ClientHello →
-    //   t ≈ 1.1 s  ← ServerHello + Certificate + ServerHelloDone
-    //   t ≈ 1.3 s  ClientKeyExchange + CCS + Finished →
-    //   t ≈ 1.4 s  ← Server CCS + Finished
-    //   t ≈ 3.0 s  ApplicationData exchange (both directions)
-    //   t ≈ 5.0 s  Server calls Close() on conn + listen sockets (TCP FIN)
-    //   t = 7.0 s  Client sends new SYN to port 50443 (no listener!)
-    //   t ≈ 7.0 s  ← [RST, ACK]  server TCP stack rejects the SYN
+    //   t = 1.0+j s  TCP SYN (client → server)
+    //   t ≈ 1.0+j s  TCP SYN-ACK + ACK (3-way handshake completes)
+    //   t ≈ 1.0+j s  TLS handshake begins: ClientHello →
+    //   t ≈ 1.1+j s  ← ServerHello + Certificate + ServerHelloDone
+    //   t ≈ 1.3+j s  ClientKeyExchange + CCS + Finished →
+    //   t ≈ 1.4+j s  ← Server CCS + Finished
+    //   t ≈ 3.0+j s  ApplicationData exchange (both directions)
+    //   t ≈ 5.0+j s  Server calls Close() on conn + listen sockets (TCP FIN)
+    //   t = 7.0+j s  Client sends new SYN to port 50443 (no listener!)
+    //   t ≈ 7.0+j s  ← [RST, ACK]  server TCP stack rejects the SYN
+    //   (j = seed jitter = (seed%20)*0.005 s)
     //
     // In Wireshark (filter: tcp):
-    //   Look for the RST segment near t=7s (Flags: [RST, ACK]).
+    //   Look for the RST segment near t=7+j s (Flags: [RST, ACK]).
     //   This segment is sent by ns-3's TcpL4Protocol because no socket
     //   is listening on port 50443 when the second SYN arrives.
     //
@@ -1117,8 +1193,12 @@ RunTlsTcp(bool pcap)
     //       these guarantees.  (DTLS is the UDP variant of TLS and adds
     //       its own record-layer sequencing and retransmission.)
 
+    // Run with:  --scenario=tls-tcp  OR the shorthand  --tlsTcp=1
     NS_LOG_INFO("=== Scenario: tls-tcp ===");
-    RunScenario({"tls-tcp", false, true}, pcap);
+    std::string outDir = "scratch/d0002e/lab 7 output/seed" +
+                         std::to_string(seed) + "/tls-tcp/";
+    RunScenario({"tls-tcp", g_cipher256, true}, seed, jitter,
+                outDir + "netanim.xml");
 }
 
 // ===================================================================
@@ -1129,28 +1209,59 @@ int
 main(int argc, char *argv[])
 {
     std::string scenario = "handshake";
-    bool        pcap     = false;
+    bool tlsTcpAlias = false; // PDF mentions --tlsTcp; alias for --scenario=tls-tcp
 
     CommandLine cmd(__FILE__);
     cmd.AddValue("scenario",
-                 "Scenario to run: handshake|certificate|data|cipher|tls-tcp",
+                 "Scenario to run: handshake|certificate|data|cipher|tls-tcp|all",
                  scenario);
+    cmd.AddValue("tlsTcp",
+                 "Shorthand for --scenario=tls-tcp (PDF compatibility alias)",
+                 tlsTcpAlias);
+    cmd.AddValue("seed",
+                 "RNG seed 1–100; also controls timing jitter (default 100)",
+                 g_seed);
     cmd.AddValue("pcap",
-                 "Enable PCAP capture (0/1)",
-                 pcap);
+                 "Enable PCAP capture 0/1 (default 1)",
+                 g_pcapEnabled);
+    cmd.AddValue("cipher256",
+                 "Force AES-256-SHA256 in all scenarios 0/1 (default 0)",
+                 g_cipher256);
     cmd.Parse(argc, argv);
+
+    // PDF refers to "--tlsTcp"; honour it as an alias for --scenario=tls-tcp
+    if (tlsTcpAlias)
+        scenario = "tls-tcp";
+
+    // PacketMetadata must be enabled before any topology is created
+    PacketMetadata::Enable();
 
     LogComponentEnable("Lab7TLS", LOG_LEVEL_INFO);
 
-    if      (scenario == "handshake")   RunHandshake   (pcap);
-    else if (scenario == "certificate") RunCertificate (pcap);
-    else if (scenario == "data")        RunData        (pcap);
-    else if (scenario == "cipher")      RunCipher      (pcap);
-    else if (scenario == "tls-tcp")     RunTlsTcp      (pcap);
+    // Jitter: 0..0.095 s depending on seed (20 distinct values)
+    double jitter = static_cast<double>(g_seed % 20) * 0.005;
+
+    NS_LOG_INFO("seed=" << g_seed << "  jitter=" << jitter
+                        << "s  cipher256=" << g_cipher256
+                        << "  pcap=" << g_pcapEnabled);
+
+    if      (scenario == "handshake")   RunHandshake   (g_seed, jitter);
+    else if (scenario == "certificate") RunCertificate (g_seed, jitter);
+    else if (scenario == "data")        RunData        (g_seed, jitter);
+    else if (scenario == "cipher")      RunCipher      (g_seed, jitter);
+    else if (scenario == "tls-tcp")     RunTlsTcp      (g_seed, jitter);
+    else if (scenario == "all")
+    {
+        RunHandshake   (g_seed, jitter);
+        RunCertificate (g_seed, jitter);
+        RunData        (g_seed, jitter);
+        RunCipher      (g_seed, jitter);
+        RunTlsTcp      (g_seed, jitter);
+    }
     else
     {
         std::cerr << "Unknown scenario: " << scenario << "\n"
-                  << "Valid values: handshake|certificate|data|cipher|tls-tcp\n";
+                  << "Valid values: handshake|certificate|data|cipher|tls-tcp|all\n";
         return 1;
     }
 

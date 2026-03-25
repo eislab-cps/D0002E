@@ -15,22 +15,34 @@ In this lab you will simulate a TLS 1.2 handshake and encrypted data exchange us
 From the ns-3 root directory (`ns-allinone-3.46.1/ns-3.46.1/`):
 
 ```bash
+# Use your lab group number as the seed
+GROUP=42
+
 # Build
 ./ns3 build
 
 # Run individual scenarios
-./ns3 run "scratch/d0002e/lab6-with-guidance --scenario=handshake --pcap=1"
-./ns3 run "scratch/d0002e/lab6-with-guidance --scenario=certificate --pcap=1"
-./ns3 run "scratch/d0002e/lab6-with-guidance --scenario=data --pcap=1"
-./ns3 run "scratch/d0002e/lab6-with-guidance --scenario=cipher --pcap=1"
-./ns3 run "scratch/d0002e/lab6-with-guidance --scenario=tls-tcp --pcap=1"
+./ns3 run "scratch/d0002e/lab6-with-guidance --scenario=handshake --seed=$GROUP"
+./ns3 run "scratch/d0002e/lab6-with-guidance --scenario=certificate --seed=$GROUP"
+./ns3 run "scratch/d0002e/lab6-with-guidance --scenario=data --seed=$GROUP"
+./ns3 run "scratch/d0002e/lab6-with-guidance --scenario=cipher --seed=$GROUP"
+./ns3 run "scratch/d0002e/lab6-with-guidance --scenario=tls-tcp --seed=$GROUP"
+
+# Example parameter experiments
+./ns3 run "scratch/d0002e/lab6-with-guidance --scenario=cipher --cipher256=1 --seed=$GROUP"
+./ns3 run "scratch/d0002e/lab6-with-guidance --tlsTcp=1 --seed=$GROUP"
+
+# Run all scenarios at once
+./ns3 run "scratch/d0002e/lab6-with-guidance --scenario=all --seed=$GROUP"
 ```
 
-**Note:** The `--pcap=1` flag is required to enable PCAP capture. The source file internally references "lab7" in its comments, but the build target name is `lab6-with-guidance`.
+Additional options: `--pcap=0`, `--cipher256=1`, `--tlsTcp=1`, `--seed=<group-number>`.
+
+PCAP capture is enabled by default. The executable name is `lab6-with-guidance`, but the output directory still uses the historical `lab 7` name.
 
 ## How to analyse
 
-Running the simulation produces `.pcap` files in the `scratch/d0002e/lab 7 output/<scenario>/` directory (relative to the ns-3 root). Open the `-0-0.pcap` file (server-side capture) in Wireshark. The display filter `tls` shows TLS records. Wireshark's TLS dissector recognises TLS 1.2 records by ContentType and ProtocolVersion fields in the record header.
+Running the simulation produces `.pcap` files in `scratch/d0002e/lab 7 output/seed<group>/<scenario>/` (relative to the ns-3 root). Each scenario folder also contains `netanim.xml` for NetAnim. Open the `-0-0.pcap` file (server-side capture) in Wireshark. The display filter `tls` shows TLS records. Wireshark's TLS dissector recognises TLS 1.2 records by ContentType and ProtocolVersion fields in the record header.
 
 ---
 

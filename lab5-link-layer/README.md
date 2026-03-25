@@ -15,27 +15,34 @@ In this lab you will simulate Ethernet, ARP, switch MAC-learning, CRC error dete
 From the ns-3 root directory (`ns-allinone-3.46.1/ns-3.46.1/`):
 
 ```bash
+# Use your lab group number as the seed
+GROUP=42
+
 # Build
 ./ns3 build
 
 # Run individual scenarios
-./ns3 run "scratch/d0002e/lab5-with-guidance --scenario=ethernet-basic --pcap=1"
-./ns3 run "scratch/d0002e/lab5-with-guidance --scenario=arp --pcap=1"
-./ns3 run "scratch/d0002e/lab5-with-guidance --scenario=switch-learning --pcap=1"
-./ns3 run "scratch/d0002e/lab5-with-guidance --scenario=crc --pcap=1"
-./ns3 run "scratch/d0002e/lab5-with-guidance --scenario=vlan --pcap=1"
+./ns3 run "scratch/d0002e/lab5-with-guidance --scenario=ethernet-basic --seed=$GROUP"
+./ns3 run "scratch/d0002e/lab5-with-guidance --scenario=arp --seed=$GROUP"
+./ns3 run "scratch/d0002e/lab5-with-guidance --scenario=switch-learning --seed=$GROUP"
+./ns3 run "scratch/d0002e/lab5-with-guidance --scenario=crc --seed=$GROUP"
+./ns3 run "scratch/d0002e/lab5-with-guidance --scenario=vlan --seed=$GROUP"
+
+# Example parameter experiments
+./ns3 run "scratch/d0002e/lab5-with-guidance --scenario=crc --errorRate=0.05 --seed=$GROUP"
+./ns3 run "scratch/d0002e/lab5-with-guidance --scenario=crc --errorRate=0.30 --seed=$GROUP"
 
 # Run all scenarios at once
-./ns3 run "scratch/d0002e/lab5-with-guidance --scenario=all --pcap=1"
+./ns3 run "scratch/d0002e/lab5-with-guidance --scenario=all --seed=$GROUP"
 ```
 
-Additional options: `--verbose=1`.
+Additional options: `--pcap=0`, `--verbose=1`, `--seed=<group-number>`, `--errorRate=0.10`.
 
-**Note:** The `--pcap=1` flag is required to enable PCAP capture.
+PCAP capture is enabled by default. Use the same seed to reproduce the same run; different seeds change timing slightly and write to separate `seed<N>/` output folders.
 
 ## How to analyse
 
-Running the simulation produces `.pcap` files in the `scratch/d0002e/lab 5 output/lab5/` directory (relative to the ns-3 root), organised in subfolders by scenario. Open the `.pcap` files in Wireshark. Useful display filters:
+Running a single scenario writes `.pcap` files to `scratch/d0002e/lab 5 output/seed<group>/` (relative to the ns-3 root). Running `--scenario=all` creates one subfolder per scenario under the same seed directory. Each output folder also contains `netanim.xml` for NetAnim. Open the `.pcap` files in Wireshark. Useful display filters:
 
 - `eth` — Ethernet headers
 - `arp` — ARP packets; `arp.opcode==1` for requests, `arp.opcode==2` for replies

@@ -15,26 +15,36 @@ In this lab you will simulate TCP and UDP traffic using ns-3, then analyse the c
 From the ns-3 root directory (`ns-allinone-3.46.1/ns-3.46.1/`):
 
 ```bash
+# Use your lab group number as the seed
+GROUP=42
+
 # Build
 ./ns3 build
 
 # Run individual scenarios
-./ns3 run "scratch/d0002e/lab2-with-guidance --scenario=tcp-handshake"
-./ns3 run "scratch/d0002e/lab2-with-guidance --scenario=tcp-data"
-./ns3 run "scratch/d0002e/lab2-with-guidance --scenario=tcp-loss"
-./ns3 run "scratch/d0002e/lab2-with-guidance --scenario=tcp-congestion"
-./ns3 run "scratch/d0002e/lab2-with-guidance --scenario=udp-basic"
-./ns3 run "scratch/d0002e/lab2-with-guidance --scenario=udp-loss"
+./ns3 run "scratch/d0002e/lab2-with-guidance --scenario=tcp-handshake --seed=$GROUP"
+./ns3 run "scratch/d0002e/lab2-with-guidance --scenario=tcp-data --seed=$GROUP"
+./ns3 run "scratch/d0002e/lab2-with-guidance --scenario=tcp-loss --seed=$GROUP"
+./ns3 run "scratch/d0002e/lab2-with-guidance --scenario=tcp-congestion --seed=$GROUP"
+./ns3 run "scratch/d0002e/lab2-with-guidance --scenario=udp-basic --seed=$GROUP"
+./ns3 run "scratch/d0002e/lab2-with-guidance --scenario=udp-loss --seed=$GROUP"
+
+# Example parameter experiments
+./ns3 run "scratch/d0002e/lab2-with-guidance --scenario=tcp-data --payloadSize=100000 --seed=$GROUP"
+./ns3 run "scratch/d0002e/lab2-with-guidance --scenario=tcp-congestion --lossRate=0.01 --seed=$GROUP"
+./ns3 run "scratch/d0002e/lab2-with-guidance --scenario=udp-basic --linkDelay=50ms --seed=$GROUP"
 
 # Run all scenarios at once
-./ns3 run "scratch/d0002e/lab2-with-guidance --scenario=all"
+./ns3 run "scratch/d0002e/lab2-with-guidance --scenario=all --seed=$GROUP"
 ```
 
-Additional options: `--verbose=true`, `--payloadSize=50000`, `--lossRate=0.05`.
+Additional options: `--verbose=true`, `--payloadSize=50000`, `--lossRate=0.05`, `--linkDelay=2ms`, `--serverPort=5001`, `--seed=<group-number>`.
+
+Use the same seed to reproduce the same run. Different seeds change timing slightly and write to separate `seed<N>/` output folders.
 
 ## How to analyse
 
-Running the simulation produces `.pcap` files in the `scratch/d0002e/lab 2 output/` directory (relative to the ns-3 root). Each scenario creates `client-0-0.pcap` and `server-0-0.pcap`. Open these in Wireshark. For congestion control analysis, use Wireshark's Statistics > TCP Stream Graphs > Time-Sequence Graph (Stevens).
+Running a single scenario writes `.pcap` files to `scratch/d0002e/lab 2 output/seed<group>/` (relative to the ns-3 root). Running `--scenario=all` creates one subfolder per scenario under the same seed directory. Each output folder also contains `netanim.xml` for NetAnim. Open the `.pcap` files in Wireshark. For congestion control analysis, use Wireshark's Statistics > TCP Stream Graphs > Time-Sequence Graph (Stevens).
 
 ---
 

@@ -91,6 +91,11 @@ Then rebuild ns-3 so it picks up the new targets:
   (`/home/<user>/...`), not under `/mnt/c/...`.
 - Generated output folders and PCAP files are local artifacts and should not be
   committed back to the repository.
+- The lab scripts use reproducible seeds and write captures under seed-specific
+  output folders such as `scratch/d0002e/lab 2 output/seed42/`.
+- Labs 2, 3, 5, and 6 also write `netanim.xml` files alongside the PCAP
+  captures and therefore require an `ns-3` build with the `netanim` module
+  enabled.
 - Lab 6 uses the executable name `lab6-with-guidance`, but its TLS capture
   output is written under `scratch/d0002e/lab 7 output/`.
 

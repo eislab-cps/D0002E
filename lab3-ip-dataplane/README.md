@@ -15,26 +15,33 @@ In this lab you will simulate IPv4 forwarding and fragmentation using ns-3 and a
 From the ns-3 root directory (`ns-allinone-3.46.1/ns-3.46.1/`):
 
 ```bash
+# Use your lab group number as the seed
+GROUP=42
+
 # Build
 ./ns3 build
 
 # Run individual scenarios
-./ns3 run "scratch/d0002e/lab3-with-guidance --scenario=basic-forwarding --pcap=1"
-./ns3 run "scratch/d0002e/lab3-with-guidance --scenario=fragmentation --pcap=1"
-./ns3 run "scratch/d0002e/lab3-with-guidance --scenario=routing --pcap=1"
-./ns3 run "scratch/d0002e/lab3-with-guidance --scenario=ttl-expiry --pcap=1"
+./ns3 run "scratch/d0002e/lab3-with-guidance --scenario=basic-forwarding --seed=$GROUP"
+./ns3 run "scratch/d0002e/lab3-with-guidance --scenario=fragmentation --seed=$GROUP"
+./ns3 run "scratch/d0002e/lab3-with-guidance --scenario=routing --seed=$GROUP"
+./ns3 run "scratch/d0002e/lab3-with-guidance --scenario=ttl-expiry --seed=$GROUP"
+
+# Example parameter experiments
+./ns3 run "scratch/d0002e/lab3-with-guidance --scenario=fragmentation --packetSize=600 --seed=$GROUP"
+./ns3 run "scratch/d0002e/lab3-with-guidance --scenario=fragmentation --packetSize=3500 --mtu=576 --seed=$GROUP"
 
 # Run all scenarios at once
-./ns3 run "scratch/d0002e/lab3-with-guidance --scenario=all --pcap=1"
+./ns3 run "scratch/d0002e/lab3-with-guidance --scenario=all --seed=$GROUP"
 ```
 
-Additional options: `--verbose=true`, `--packetSize=3500`, `--mtu=1500`.
+Additional options: `--pcap=0`, `--verbose=true`, `--packetSize=3500`, `--mtu=1500`, `--seed=<group-number>`.
 
-**Note:** The `--pcap=1` flag is required to enable PCAP capture.
+PCAP capture is enabled by default. Use the same seed to reproduce the same run; different seeds change timing slightly and write to separate `seed<N>/` output folders.
 
 ## How to analyse
 
-Running the simulation produces `.pcap` files in the `scratch/d0002e/lab 3 output/` directory (relative to the ns-3 root). Capture files include `client-0-0.pcap`, `router*-0-0.pcap`, and `server-0-0.pcap`. Open these in Wireshark. Useful display filters:
+Running a single scenario writes capture files to `scratch/d0002e/lab 3 output/seed<group>/` (relative to the ns-3 root). Running `--scenario=all` creates one subfolder per scenario under the same seed directory. Capture files include `client-0-0.pcap`, `router*-0-0.pcap`, and `server-0-0.pcap`. Each output folder also contains `netanim.xml` for NetAnim. Open these in Wireshark. Useful display filters:
 
 - `ip.flags.mf || ip.frag_offset > 0` — show fragmented packets
 - `icmp.type == 11` — show ICMP Time Exceeded messages
