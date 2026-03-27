@@ -121,9 +121,9 @@ If NetAnim support is enabled, the same directory also contains `seed<group>-net
 ### DNS and HTTP Interaction
 
 24. [C] How is the Transaction ID generated?
-25. [X] How would lowering TTL affect observed traffic?
+25. [C+X] How would lowering TTL affect observed traffic?
 
-For question 25, recommended TTL values are `300`, `60`, `10`, and `1` seconds.
+Hint (25): Consider reducing the DNS cache lifetime from its default value to progressively smaller values (e.g., from a few hundred seconds down toward tens of seconds) using a parameter such as --dnsTTL. Observe how this influences the frequency of DNS queries and overall traffic patterns.
 
 ---
 
@@ -134,4 +134,4 @@ For question 25, recommended TTL values are `300`, `60`, `10`, and `1` seconds.
 - `[B]` — Answer using both Wireshark and source code
 - `[T]` — Answer from textbook theory
 - `[V]` — Verify Wireshark observations against textbook explanations
-- `[X]` — Answer by reading the simulation source code and experimenting with different input parameters
+- `[_+X]` — In addtion to what is instructed at "_", experiment with different input parameters

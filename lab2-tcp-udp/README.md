@@ -59,20 +59,39 @@ Running a single scenario writes `.pcap` files to `scratch/d0002e/lab 2 output/s
 
 ### TCP Data Transfer and Segmentation
 
-5. [W] How many TCP segments carry application data from client to server?
+5. [W+X] How many TCP segments carry application data from client to server for different payload sizes?
+
+Hint (5): Consider varying the application data size over a small-to-large range (e.g., a few KB up to hundreds of KB) using a parameter such as --payloadSize.
+
 6. [T] Why is the application data divided into multiple TCP segments?
-7. [W] What is the advertised receiver window size in the first ACK?
+7. [W+X] What is the advertised receiver window size in the first ACK, and does it change with different payload sizes or transmission conditions?
+
+Hint (7): Observe how this value behaves when increasing the payload size and/or modifying traffic intensity (e.g., via --payloadSize).
 
 ### TCP Reliability and Retransmission
 
-8. [W] Are any TCP segments retransmitted? How can this be verified?
-9. [W] What event likely caused the retransmission (timeout or duplicate ACKs)?
-10. [W] What is the sequence number of the first retransmitted segment?
+8. [W+X] Are any TCP segments retransmitted under different packet loss conditions? How can this be verified?
+
+Hint (8): Introduce packet loss over a range from very low to moderate levels (e.g., around 1–10%) using a parameter such as --lossRate.
+
+9. [W+X] What event likely caused the retransmission (timeout or duplicate ACKs), and how does this change as loss increases?
+
+Hint (9): Compare behavior at lower versus higher loss rates (controlled via --lossRate) and look for patterns in ACK sequences.
+
+10. [W+X] What is the sequence number of the first retransmitted segment, and does it vary across different runs or loss conditions?
+
+Hint (10): Repeat experiments with different loss levels and optionally different seeds (e.g., --seed) to observe variability.
 
 ### TCP Flow and Congestion Control
 
-11. [W] At what point does congestion avoidance begin?
-12. [B] How does induced packet loss affect the congestion window?
+11. [W+X] At what point does congestion avoidance begin, and how does this change under different network conditions?
+
+Hint (11): Explore scenarios with increasing packet loss (e.g., low to moderate loss using --lossRate) and/or different delays if available.
+
+12. [B+X] How does induced packet loss affect the congestion window evolution (e.g., slow start vs congestion avoidance behavior)?
+
+Hint (12): Compare congestion window behavior across runs with different loss levels (controlled via --lossRate), and observe transitions between phases.
+
 13. [C] Which TCP variant is configured in the script (e.g., NewReno)?
 
 ### Basic UDP Transmission
@@ -83,7 +102,10 @@ Running a single scenario writes `.pcap` files to `scratch/d0002e/lab 2 output/s
 
 ### UDP Loss Behavior
 
-17. [W] Are lost UDP packets retransmitted?
+17. [W+X] Are lost UDP packets retransmitted under different packet loss conditions?
+
+Hint (17): Apply a range of loss rates (e.g., from near-zero up to noticeable levels such as 1–10%) using --lossRate and compare sent vs received packets.
+
 18. [B] Compare UDP and TCP behavior under identical packet loss conditions.
 
 ### Conceptual Comparison
@@ -99,3 +121,4 @@ Running a single scenario writes `.pcap` files to `scratch/d0002e/lab 2 output/s
 - `[B]` — Answer using both Wireshark and source code
 - `[T]` — Answer from textbook theory
 - `[V]` — Verify Wireshark observations against textbook explanations
+- `[_+X]` — In addtion to what is instructed at "_", experiment with different input parameters
