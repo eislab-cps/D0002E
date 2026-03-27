@@ -61,10 +61,22 @@ Running a single scenario writes capture files to `scratch/d0002e/lab 3 output/s
 ### IPv4 Fragmentation
 
 6. [C] What packet size is configured in the script to trigger IPv4 fragmentation?
-7. [B] How many IP fragments are generated for the large packet?
-8. [W] Which fields in the IP header indicate that fragmentation has occurred?
-9. [W] How can you identify the last fragment of a fragmented datagram?
-10. [V] Why must fragment offsets be multiples of 8 bytes?
+7. [B+X] How many IP fragments are generated for the large packet under different conditions?
+
+Hint (7): Consider varying the datagram size from slightly above the MTU to significantly larger values (e.g., a few hundred bytes above up to several times the MTU) using a parameter such as --packetSize. You may also explore different MTU values using --mtu.
+
+8. [W+X] Which fields in the IP header indicate that fragmentation has occurred?
+
+Hint (8): Observe how these fields change when the packet size exceeds the MTU (controlled via --packetSize and --mtu).
+
+9. [W+X] How can you identify the last fragment of a fragmented datagram?
+
+Hint (9): Compare fragments generated under different packet sizes (via --packetSize) and observe how specific header flags differ between fragments.
+
+10. [V+X] Why must fragment offsets be multiples of 8 bytes?
+
+Hint (10): Examine how fragment sizes and offsets relate when varying packet size and MTU (e.g., using --packetSize and --mtu), and relate this to alignment constraints in IPv4.
+
 
 ---
 
@@ -75,3 +87,4 @@ Running a single scenario writes capture files to `scratch/d0002e/lab 3 output/s
 - `[B]` — Answer using both Wireshark and source code
 - `[T]` — Answer from textbook theory
 - `[V]` — Verify Wireshark observations against textbook explanations
+- `[_+X]` — In addtion to what is instructed at "_", experiment with different input parameters
