@@ -68,24 +68,40 @@ For CRC, compare `crc-sender*.pcap` vs `crc-receiver*.pcap` (receiver has fewer 
 5. [W] What is the destination MAC address in the ARP Request?
 6. [W] What opcode value is used for ARP Request and ARP Reply?
 7. [B] Why does the ARP Request use a broadcast MAC address?
-8. [B] Does the ARP Reply use broadcast or unicast?
+8. [B+X] Does the ARP Reply use broadcast or unicast?
+
+Hint (8): Observe behavior before and after address resolution. Compare early traffic with subsequent transmissions in the ARP scenario.
+
 9. [V] Why is ARP needed before sending the first IP packet?
 
 ### Switch Forwarding and MAC Learning
 
-10. [W] Is the first frame forwarded as broadcast or selective unicast?
-11. [B] Why does the switch flood the first frame?
-12. [W] Are subsequent frames forwarded only to one output port?
+10. [W+X] Is the first frame forwarded as broadcast or selective unicast?
+
+Hint (10): Observe the initial frames when the switch has not yet learned MAC addresses. Compare early frames with later frames using repeated transmissions.
+
+11. [B+X] Why does the switch flood the first frame?
+
+Hint (11): Compare switch behavior before and after MAC learning. Use repeated traffic to observe when the forwarding behavior changes.
+
+12. [W+X] Are subsequent frames forwarded only to one output port?
+
+Hint (12): Compare packet captures over time (e.g., first transmission vs later ones) to observe how forwarding becomes selective.
+
 13. [V] How does a switch learn MAC addresses?
 
 ### Ethernet CRC and Error Detection
 
 14. [V] What error-detection mechanism is used in Ethernet?
 15. [C] Is CRC computation implemented in the application code?
+16. [W+X] How does frame loss behavior change when errors are introduced?
+
+Hint (16): Compare sender and receiver captures under conditions where frames may be dropped (e.g., using an error model or varying error probability).
+
 
 ### VLAN Tagging
 
-16. [V] Why are VLANs used in LANs?
+17. [V] Why are VLANs used in LANs?
 
 ---
 
@@ -96,3 +112,4 @@ For CRC, compare `crc-sender*.pcap` vs `crc-receiver*.pcap` (receiver has fewer 
 - `[B]` — Answer using both Wireshark and source code
 - `[T]` — Answer from textbook theory
 - `[V]` — Verify Wireshark observations against textbook explanations
+- `[_+X]` — In addtion to what is instructed at "_", experiment with different input parameters
