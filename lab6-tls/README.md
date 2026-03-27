@@ -68,12 +68,18 @@ Running the simulation produces `.pcap` files in `scratch/d0002e/lab 7 output/se
 
 ### Key Exchange and Cipher Suites
 
-10. [W] Which cipher suite is negotiated between client and server?
+10. [W+X] Which cipher suite is negotiated between client and server?
+
+Hint (10): Compare different runs using stronger or alternative cipher configurations (e.g., enabling a higher-security option such as --cipher256). Observe how the negotiated cipher suite changes in the ServerHello message.
+
 11. [V] Why is symmetric cryptography preferred for bulk data encryption in TLS?
 
 ### TLS and TCP Interaction
 
-12. [W] Does TLS run directly over IP or over TCP?
+12. [W+X] Does TLS run directly over IP or over TCP?
+
+Hint (12): Compare different scenarios (e.g., standard TLS communication vs variations such as --tlsTcp) and observe whether a TCP handshake precedes TLS records in the packet trace.
+
 13. [V] Why does TLS rely on TCP rather than UDP for reliable transport?
 
 ---
@@ -85,3 +91,4 @@ Running the simulation produces `.pcap` files in `scratch/d0002e/lab 7 output/se
 - `[B]` — Answer using both Wireshark and source code
 - `[T]` — Answer from textbook theory
 - `[V]` — Verify Wireshark observations against textbook explanations
+- `[_+X]` — In addtion to what is instructed at "_", experiment with different input parameters
