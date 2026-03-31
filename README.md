@@ -1,40 +1,50 @@
-# D0002E Computer Networking — Lab Simulations
+# 🌐 D0002E Computer Networking — Lab Simulations
 
-Luleå University of Technology
+> **Luleå University of Technology**
+>
+> This repository contains **ns-3 simulation scripts** and lab questions for 6 labs covering Chapters 2–6 and 8 of Kurose & Ross, *Computer Networking: A Top-Down Approach* (8th edition). Each lab generates PCAP files that you analyze in **Wireshark** to answer questions about network protocol behavior.
 
-This repository contains ns-3 simulation scripts and lab questions for 6 labs covering Chapters 2--6 and 8 of Kurose & Ross, *Computer Networking: A Top-Down Approach* (8th edition). Each lab generates PCAP files that you analyse in Wireshark to answer questions about network protocol behaviour.
+---
 
-## Prerequisites
+## 📋 Prerequisites
 
-- **Textbook:** Kurose & Ross, *Computer Networking: A Top-Down Approach*, 8th edition. Chapter numbers may vary between editions.
-- **Wireshark:** Free packet analyser. Download from <https://www.wireshark.org/download.html>.
-- **ns-3.46:** Network simulator. Setup instructions below.
+To complete these labs, you will need:
 
-## Windows users
+- 📖 **Textbook:** Kurose & Ross, *Computer Networking: A Top-Down Approach*, 8th edition. *(Chapter numbers may vary between editions)*
+- 🦈 **Wireshark:** Free packet analyzer. [Download here](https://www.wireshark.org/download.html).
+- 🛠️ **ns-3.46:** Network simulator. *(Setup instructions below)*
 
-If you are on Windows, use WSL with Ubuntu and run `ns-3` inside WSL.
+> [!TIP]
+> **Windows users:**
+> If you are on Windows, we heavily recommend using **WSL with Ubuntu** and running `ns-3` inside WSL. 
+> 
+> 📚 **[Windows WSL Setup Guide](WSL_SETUP.md)**
+> 
+> This is the recommended setup because these labs are Linux-based, but the generated `.pcap` files still open perfectly in your native Windows Wireshark.
 
-- Setup guide: [Windows WSL Setup Guide](WSL_SETUP.md)
+---
 
-This is the recommended student setup because these labs are Linux-based, but
-the generated `.pcap` files still open nicely in Windows Wireshark.
+## 🚀 ns-3 Setup Guide
 
-## ns-3 setup
+### 1. System Requirements
 
-### System requirements
+🐧 **Linux is required.** Ubuntu 22.04 or 24.04 are recommended and known to work flawlessly.
 
-Linux is required. Ubuntu 22.04 or 24.04 are recommended and known to work.
+### 2. Install Dependencies
 
-### Install dependencies
+Open your terminal and install the required tools:
 
 ```bash
+sudo apt update
 sudo apt install g++ python3 cmake ninja-build git wget
 ```
 
-### Download and build ns-3
+### 3. Download and Build ns-3
+
+Download and extract the `ns-3.46.1` source, then build the simulator:
 
 ```bash
-# Download ns-allinone-3.46.1
+# Download and extract ns-allinone-3.46.1
 wget https://www.nsnam.org/releases/ns-allinone-3.46.1.tar.bz2
 tar xvf ns-allinone-3.46.1.tar.bz2
 cd ns-allinone-3.46.1/ns-3.46.1
@@ -44,64 +54,64 @@ cd ns-allinone-3.46.1/ns-3.46.1
 ./ns3 build
 ```
 
-### Place the lab files
+### 4. Place the Lab Files
 
-Recommended: clone this repository directly into `scratch/d0002e/` inside the
-ns-3 tree.
+Clone this repository directly into the `scratch/d0002e/` directory inside your `ns-3` tree.
 
 ```bash
 # From the ns-3 root (ns-allinone-3.46.1/ns-3.46.1/):
 git clone https://github.com/eislab-cps/D0002E.git scratch/d0002e
 ```
 
-After cloning, the structure inside ns-3 should look like:
-
-```
+**After cloning, your structure should look like this:**
+```text
 ns-3.46.1/scratch/d0002e/
-  CMakeLists.txt
-  lab1-http-dns/lab1-with-guidance.cc
-  lab2-tcp-udp/lab2-with-guidance.cc
-  lab3-ip-dataplane/lab3-with-guidance.cc
-  lab4-ip-controlplane/lab4-with-guidance.cc
-  lab5-link-layer/lab5-with-guidance.cc
-  lab6-tls/lab6-with-guidance.cc
+├── CMakeLists.txt
+├── lab1-http-dns/
+├── lab2-tcp-udp/
+├── lab3-ip-dataplane/
+├── lab4-ip-controlplane/
+├── lab5-link-layer/
+└── lab6-tls/
 ```
 
-Then rebuild ns-3 so it picks up the new targets:
+Then rebuild `ns-3` so it registers the new examples:
 
 ```bash
 ./ns3 configure --enable-examples
 ./ns3 build
 ```
 
-### Verify the install
+### 5. Verify the Installation
+
+Run a default `ns-3` example to ensure everything works:
 
 ```bash
-# Run a default ns-3 example to check everything works:
 ./ns3 run first
+```
 
-# Then try one of the lab simulations:
+Then try running the first lab simulation:
+
+```bash
 ./ns3 run "scratch/d0002e/lab1-with-guidance --scenario=basic"
 ```
 
-### Student notes
+---
 
-- Run `ns-3` from Linux or WSL, not native Windows.
-- If you are using WSL, keep the project under your Linux home directory
-  (`/home/<user>/...`), not under `/mnt/c/...`.
-- Generated output folders and PCAP files are local artifacts and should not be
-  committed back to the repository.
-- The lab scripts use reproducible seeds and write captures under seed-specific
-  output folders such as `scratch/d0002e/lab 2 output/seed42/`.
-- Labs 2, 3, 5, and 6 also write `netanim.xml` files alongside the PCAP
-  captures and therefore require an `ns-3` build with the `netanim` module
-  enabled.
-- Lab 6 uses the executable name `lab6-with-guidance`, but its TLS capture
-  output is written under `scratch/d0002e/lab 7 output/`.
+## 🎓 Student Notes & Best Practices
 
-## Repository structure
+- 💻 Run `ns-3` strictly from Linux or WSL, **not** native Windows.
+- 📁 **WSL Users:** Keep the project under your Linux home directory (`/home/<user>/...`), **not** under the mounted Windows drive (`/mnt/c/...`).
+- 🛑 Generated output folders and PCAP files are local artifacts. **Do not commit them** back to the repository.
+- 🎲 The lab scripts use reproducible seeds and write captures under seed-specific output folders (e.g., `scratch/d0002e/lab 2 output/seed42/`).
+- 🎥 Labs 2, 3, 5, and 6 write `netanim.xml` files alongside the PCAP captures. This requires an `ns-3` build with the `netanim` module enabled.
+- 🔒 **Lab 6 Note:** Uses the executable name `lab6-with-guidance`, but its TLS capture output is written under `scratch/d0002e/lab 7 output/`.
 
-```
+---
+
+## 📂 Repository Structure
+
+```text
 README.md                              ← This file
 WSL_SETUP.md                           ← Windows + WSL setup guide
 CMakeLists.txt                         ← ns-3 build configuration for all labs
@@ -126,33 +136,41 @@ lab6-tls/
   lab6-with-guidance.cc                ← Lab 6 simulation source
 ```
 
-## Lab overview
+---
+
+## 🔬 Lab Curriculum Overview
 
 | Lab | Topic | Chapter | Questions |
-|-----|-------|---------|-----------|
-| 1 | HTTP and DNS | 2 | 25 |
-| 2 | TCP and UDP | 3 | 19 |
-| 3 | IP Data Plane | 4 | 10 |
-| 4 | IP Control Plane | 5 | 12 |
-| 5 | Link Layer and LANs | 6 | 16 |
-| 6 | Transport Layer Security | 8 | 13 |
-| **Total** | | | **95** |
+|:---:|:---|:---:|:---:|
+| **1** | 🌐 HTTP and DNS | 2 | 25 |
+| **2** | 🔄 TCP and UDP | 3 | 19 |
+| **3** | 🔀 IP Data Plane | 4 | 10 |
+| **4** | 🗺️ IP Control Plane | 5 | 12 |
+| **5** | 🔗 Link Layer and LANs | 6 | 16 |
+| **6** | 🔒 Transport Layer Security | 8 | 13 |
+| | **Total** | | **95** |
 
-## Tag legend
+---
 
-Each question is tagged to indicate how it should be answered:
+## 🏷️ Question Tag Legend
 
-- `[W]` — Answer using Wireshark capture analysis
-- `[C]` — Answer by reading the simulation source code (`labN-with-guidance.cc`)
-- `[B]` — Answer using both Wireshark and source code
-- `[T]` — Answer from textbook theory
-- `[V]` — Verify Wireshark observations against textbook explanations
-- `[_+X]` — In addtion to what is instructed at "_", experiment with different input parameters
+Each question in the labs is tagged to indicate how you should approach answering it:
 
-## How to work through a lab
+| Tag | Methodology |
+|:---:|:---|
+| `[W]` | 🦈 Answer using Wireshark capture analysis |
+| `[C]` | 💻 Answer by reading the simulation source code (`labN-with-guidance.cc`) |
+| `[B]` | 🦈+💻 Answer using *both* Wireshark and source code |
+| `[T]` | 📖 Answer from textbook theory |
+| `[V]` | ✅ Verify Wireshark observations against textbook explanations |
+| `[_+X]`| 🧪 *Experiment!* In addition to what is instructed at "_", experiment with different input parameters |
 
-1. Read the lab README in the corresponding directory.
-2. Read the `.cc` source file — the comments at the top describe the network topology, available scenarios, and expected output.
-3. Build and run the simulation using the commands shown in the lab README.
-4. Open the generated `.pcap` files in Wireshark.
-5. Answer the questions using the approach indicated by each question's tag.
+---
+
+## 🏃‍♀️ How to Work Through a Lab
+
+1. 📖 **Read** the lab `README.md` in the corresponding directory.
+2. 🔍 **Examine** the `.cc` source file — the top comments describe the network topology, available scenarios, and expected output.
+3. 🏗️ **Build and run** the simulation using the commands provided in the lab README.
+4. 🦈 **Open** the generated `.pcap` files in Wireshark.
+5. ✍️ **Answer** the questions applying the technique indicated by each question's tag.
