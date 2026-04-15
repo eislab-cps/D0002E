@@ -2,7 +2,7 @@
 
 ## Objective
 
-In this lab you will simulate routing algorithms (link-state and distance-vector), OSPF-like behaviour, and ICMP TTL expiry using ns-3. You will observe how routers exchange control packets, how routing tables converge after link failures, and how ICMP Time Exceeded messages are generated.
+In this lab you will simulate routing algorithms (link-state and distance-vector), OSPF-like behaviour, and ICMP TTL expiry using ns-3. You will observe how routers exchange control packets, how routing tables converge after link failures, and how ICMP Time Exceeded messages are generated. The script supports reproducible seeded runs and a small set of parameter knobs so you can compare outcomes across experiments.
 
 ## What you need
 
@@ -15,27 +15,45 @@ In this lab you will simulate routing algorithms (link-state and distance-vector
 From the ns-3 root directory (`ns-allinone-3.46.1/ns-3.46.1/`):
 
 ```bash
+# Use your lab group number as the seed throughout the lab
+GROUP=42
+
 # Build
 ./ns3 build
 
-# Run individual scenarios
-./ns3 run "scratch/d0002e/lab4-with-guidance --scenario=lsdv --pcap=1"
-./ns3 run "scratch/d0002e/lab4-with-guidance --scenario=lsdv --mode=dv --pcap=1"
-./ns3 run "scratch/d0002e/lab4-with-guidance --scenario=ospf-like --pcap=1"
-./ns3 run "scratch/d0002e/lab4-with-guidance --scenario=ttl-icmp --pcap=1"
+# Link State vs Distance Vector
+./ns3 run "scratch/d0002e/lab4-with-guidance --scenario=lsdv --mode=ls --seed=$GROUP --pcap=1"
+./ns3 run "scratch/d0002e/lab4-with-guidance --scenario=lsdv --mode=dv --seed=$GROUP --pcap=1"
+
+# OSPF-like LSA flooding
+./ns3 run "scratch/d0002e/lab4-with-guidance --scenario=ospf-like --seed=$GROUP --pcap=1"
+
+# TTL and ICMP Time Exceeded
+./ns3 run "scratch/d0002e/lab4-with-guidance --scenario=ttl-icmp --seed=$GROUP --pcap=1"
+
+# --- Parameter sweep examples (used by Q2, Q11, Q12) ---
+
+# DV-mode convergence experiment (keep r3r4Metric ≤ 12 in DV mode)
+./ns3 run "scratch/d0002e/lab4-with-guidance --scenario=lsdv --mode=dv --r3r4Metric=5  --seed=$GROUP --pcap=1"
+
+# TTL sweep: shortened list versus the full default list
+./ns3 run "scratch/d0002e/lab4-with-guidance --scenario=ttl-icmp --ttlList=1,2,3        --seed=$GROUP --pcap=1"
+./ns3 run "scratch/d0002e/lab4-with-guidance --scenario=ttl-icmp --ttlList=1,2,3,4,64   --seed=$GROUP --pcap=1"
 ```
 
-Additional options: `--verbose=true`, `--mode=ls` (default) or `--mode=dv`.
+Additional options: `--verbose=true`, `--pingInterval=<seconds>`, `--failureTime=<seconds>`, `--lsaInterval=<seconds>`, `--r2r4Metric=<int>`.
 
-**Note:** The `--pcap=1` flag is required to enable PCAP capture.
+Use the same seed to reproduce an identical run. Different seeds introduce small timing jitter but do not change routing decisions or topology.
+
+**Note:** `--pcap=1` is required to enable PCAP capture.
 
 ## How to analyse
 
-Running the simulation produces `.pcap` files in the `scratch/d0002e/lab 4 output/` directory (relative to the ns-3 root), organised in subfolders by scenario (`lsdv/`, `ospf-like/`, `ttl-icmp/`). Open the `.pcap` files in Wireshark. Useful display filters:
+Running a scenario writes `.pcap` files to `scratch/d0002e/lab 4 output/` (relative to the ns-3 root), organised in subfolders by scenario (`lsdv/`, `ospf-like/`, `ttl-icmp/`). Each output folder also contains `topology-info.txt` with the effective parameter values used, and the `lsdv/` folder additionally contains `routing-tables.txt` with routing-table snapshots taken before and after the link failure. Useful Wireshark display filters:
 
-- `rip` — show RIP (distance-vector) updates
-- `udp.port==50001` — show LSA packets in the OSPF-like scenario
-- `icmp.type==11` — show ICMP Time Exceeded messages
+- `rip` — RIP (distance-vector) update messages
+- `udp.port==50001` — LSA packets in the OSPF-like scenario
+- `icmp.type==11` — ICMP Time Exceeded messages
 
 ---
 
@@ -43,26 +61,37 @@ Running the simulation produces `.pcap` files in the `scratch/d0002e/lab 4 outpu
 
 ### Routing Algorithms: Link-State vs Distance-Vector
 
-1. [C] Which routing algorithm is configured in the script for each scenario?
-2. [W] After a link failure event, do routing control packets appear in the PCAP?
-3. [B] Compare convergence behavior after a link failure in LS and DV.
-4. [V] According to Chapter 5, why does LS typically converge faster than DV?
+1. [C] Which routing algorithm is configured in the script for LS mode, and which for DV mode? Name the ns-3 helper class used in each case.
 
-### OSPF-like Behavior (Intra-AS Routing)
+2. [B+X] Run the lsdv scenario in both LS and DV mode. After the R2-R4 link fails, how does convergence differ between the two modes? Compare the `routing-tables.txt` snapshots and any control traffic visible in the PCAP.
 
-5. [C] Where in the script are link weights configured?
-6. [W] Do routers exchange periodic control packets even without topology changes?
-7. [V] Why does OSPF flood link-state information throughout the AS?
+   Hint (2): Look for RIP update messages (`rip` filter) in DV mode. In LS mode there are no such messages — check whether pings recover more quickly. Note: for DV mode keep `r3r4Metric ≤ 12`; if `3 + r3r4Metric ≥ 16` (RIP infinity), the backup path via R3 is considered unreachable and DV mode will never converge after the failure.
+
+3. [V] According to Chapter 5, why does link-state routing typically converge faster than distance-vector routing after a topology change?
+
+4. [C] Where in the script is the R2-R4 link failure scheduled? Which function is called, and what arguments does it take?
+
+### OSPF-like Behaviour (Intra-AS Routing)
+
+5. [C] Where in the script are the link costs for the OSPF-like scenario configured? Which port number is used for LSA messages, and why is port 9 intentionally avoided?
+
+6. [W] Open a PCAP from the ospf-like scenario. Do routers send LSA packets even when there is no topology change? How often?
+
+7. [V] Why does OSPF flood link-state information throughout the AS rather than only to direct neighbours?
 
 ### ICMP: TTL Expiry and Error Messages
 
-8. [C] How is the initial TTL value set in the simulation?
-9. [W] What ICMP message is generated when TTL reaches zero?
-10. [W] What protocol number identifies ICMP in the IPv4 header?
-11. [B] Which router generates the ICMP Time Exceeded message?
-12. [W] Does the ICMP message include part of the original datagram?
+8. [C] How is the initial TTL value set for each test packet in the script? Which ns-3 method call controls this?
 
----
+9. [W] What ICMP message type and code is generated when a packet's TTL reaches zero at a router?
+
+10. [W] What protocol number appears in the IPv4 Protocol field for an ICMP packet?
+
+11. [B] For TTL=1, TTL=2, and TTL=3 packets, which router generates the ICMP Time Exceeded reply? How can you identify the router from the ICMP source address?
+
+12. [W+X] Run the ttl-icmp scenario with `--ttlList=1,2,3` and then with `--ttlList=1,2,3,4,64`. For the TTL values that reach the destination, what do you observe in the PCAP — is there an ICMP reply?
+
+    Hint (12): Filter `icmp` and compare what appears at the `ttl-icmp-dst` capture point between the two runs.
 
 ## Tag legend
 
@@ -71,3 +100,4 @@ Running the simulation produces `.pcap` files in the `scratch/d0002e/lab 4 outpu
 - `[B]` — Answer using both Wireshark and source code
 - `[T]` — Answer from textbook theory
 - `[V]` — Verify Wireshark observations against textbook explanations
+- `[_+X]` — In addition to what is instructed at `_`, experiment with different input parameters

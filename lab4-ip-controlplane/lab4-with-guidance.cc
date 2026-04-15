@@ -4,71 +4,59 @@
  * =============================================================================
  *
  * Lab 4: Network Layer - Routing Algorithms (Chapter 5)
+ * File:  lab4update20260414.cc  (parameterised sweep edition)
  *
- * This script generates PCAP files for Wireshark routing lab exercises.
- * Based on Kurose & Ross "Computer Networking: A Top-Down Approach" labs v8.0.
+ * This script is a drop-in replacement for lab4-with-guidance.cc.
+ * It adds:
+ *   --seed          reproducible RNG seed (default 100)
+ *   --r3r4Metric    cost of the R3-R4 link (default 10)
+ *   --r2r4Metric    cost of the R2-R4 link (default 1)
+ *   --lsaInterval   OSPF-like LSA flooding period in seconds (default 10)
+ *   --failureTime   when the R2-R4 link is brought down, in seconds (default 40)
+ *   --pingInterval  ICMP Echo Request interval in seconds (default 1)
+ *   --ttlList       comma-separated TTL values for TTL-ICMP scenario (default 1,2,3,4,64)
  *
- * =============================================================================
- * LEARNING GOALS
- * =============================================================================
- *
- * This lab covers:
- * - Link State (LS) vs Distance Vector (DV) routing algorithms
- * - OSPF-like Link State Advertisement (LSA) flooding behavior
- * - TTL field behavior and ICMP Time Exceeded generation
- * - Routing table convergence after link failures
- *
- * =============================================================================
- * EXAMPLE SCRIPTS USED AS BASIS
- * =============================================================================
- *
- * This script is based on the following ns-3 example scripts:
- *
- * 1. examples/routing/rip-simple-network.cc
- *    - Used for: RIP (Distance Vector) routing setup, link failure scheduling,
- *      RipHelper configuration, interface metric setting
- *    - Why: Demonstrates ns-3's RIP implementation with realistic topology
- *
- * 2. examples/routing/dynamic-global-routing.cc
- *    - Used for: Global routing with interface up/down events, route recomputation
- *    - Why: Shows how Ipv4GlobalRouting responds to topology changes
- *
- * 3. src/internet-apps/examples/ping.cc (pattern)
- *    - Used for: ICMP ping application setup
- *    - Why: Standard pattern for generating ICMP traffic
+ * All existing commands continue to work unchanged.
  *
  * =============================================================================
- * HOW TO RUN EACH SCENARIO
+ * HOW TO RUN
  * =============================================================================
  *
  * Build:
  *   ./ns3 build
  *
- * Run scenarios (outputs go to "scratch/d0002e/lab 4 output/" at ns-3.46.1 level):
+ * Basic runs (same as original script):
+ *   ./ns3 run "scratch/d0002e/lab4update20260414 --scenario=lsdv --pcap=1"
+ *   ./ns3 run "scratch/d0002e/lab4update20260414 --scenario=lsdv --mode=dv --pcap=1"
+ *   ./ns3 run "scratch/d0002e/lab4update20260414 --scenario=ospf-like --pcap=1"
+ *   ./ns3 run "scratch/d0002e/lab4update20260414 --scenario=ttl-icmp --pcap=1"
  *
- * 1) LINK STATE vs DISTANCE VECTOR (LS/DV Comparison):
- *    ./ns3 run "scratch/d0002e/lab4-with-guidance --scenario=lsdv --pcap=1"
- *    PCAP: files under lab 4 output/lsdv/
- *    Shows: RIP updates (DV) and GlobalRouting (LS-like) behavior
- *    Wireshark: Filter "rip" for RIP updates, observe TTL changes
+ * Parameter sweep examples (add --seed=<group> for reproducibility):
  *
- * 2) OSPF-LIKE LINK STATE ADVERTISEMENTS:
- *    ./ns3 run "scratch/d0002e/lab4-with-guidance --scenario=ospf-like --pcap=1"
- *    PCAP: files under lab 4 output/ospf-like/
- *    Shows: Periodic LSA messages flooded between routers
- *    Wireshark: Filter "udp.port==50001" for LSA packets
+ *   # LS metric sweep: raise or lower R3-R4 cost (--mode=ls is the default)
+ *   ./ns3 run "scratch/d0002e/lab4update20260414 --scenario=lsdv --r3r4Metric=5  --seed=42 --pcap=1"
+ *   ./ns3 run "scratch/d0002e/lab4update20260414 --scenario=lsdv --r3r4Metric=20 --seed=42 --pcap=1"
+ *   # NOTE: for DV mode keep r3r4Metric <= 12; higher values make the backup
+ *   #       path unreachable (total metric >= RIP infinity of 16).
  *
- * 3) TTL AND ICMP TIME EXCEEDED:
- *    ./ns3 run "scratch/d0002e/lab4-with-guidance --scenario=ttl-icmp --pcap=1"
- *    PCAP: files under lab 4 output/ttl-icmp/
- *    Shows: ICMP Time Exceeded (Type 11) when TTL expires
- *    Wireshark: Filter "icmp.type==11" for Time Exceeded
+ *   # Equal-cost tie-break: both paths cost 1
+ *   ./ns3 run "scratch/d0002e/lab4update20260414 --scenario=lsdv --r3r4Metric=1 --r2r4Metric=1 --seed=42 --pcap=1"
  *
- * Additional options:
- *   --pcap=1           Enable PCAP capture (required for Wireshark analysis)
- *   --verbose=true     Enable detailed logging
- *   --mode=ls          For lsdv scenario: use Link State mode (default)
- *   --mode=dv          For lsdv scenario: use Distance Vector mode
+ *   # Failure-time sweep
+ *   ./ns3 run "scratch/d0002e/lab4update20260414 --scenario=lsdv --failureTime=20 --seed=42 --pcap=1"
+ *   ./ns3 run "scratch/d0002e/lab4update20260414 --scenario=lsdv --failureTime=60 --seed=42 --pcap=1"
+ *
+ *   # OSPF-like LSA interval sweep
+ *   ./ns3 run "scratch/d0002e/lab4update20260414 --scenario=ospf-like --lsaInterval=5  --seed=42 --pcap=1"
+ *   ./ns3 run "scratch/d0002e/lab4update20260414 --scenario=ospf-like --lsaInterval=30 --seed=42 --pcap=1"
+ *
+ *   # TTL sweep: single TTL value at a time
+ *   ./ns3 run "scratch/d0002e/lab4update20260414 --scenario=ttl-icmp --ttlList=1 --seed=42 --pcap=1"
+ *   ./ns3 run "scratch/d0002e/lab4update20260414 --scenario=ttl-icmp --ttlList=1,2,3 --seed=42 --pcap=1"
+ *
+ *   # Seed reproducibility: run twice with the same seed, compare output
+ *   ./ns3 run "scratch/d0002e/lab4update20260414 --scenario=lsdv --seed=42 --pcap=1"
+ *   ./ns3 run "scratch/d0002e/lab4update20260414 --scenario=lsdv --seed=99 --pcap=1"
  *
  * =============================================================================
  * NETWORK TOPOLOGY (LSDV and OSPF-like scenarios)
@@ -77,14 +65,15 @@
  *                 10.1.2.0/24         10.1.6.0/24
  *        [SRC]---[R1]---[R2]----------------[R4]---[DST]
  *                  \      |                  /
- *            10.1.3.0/24  |          10.1.5.0/24 (higher metric)
+ *            10.1.3.0/24  |          10.1.5.0/24 (r3r4Metric)
  *                    \    | 10.1.4.0/24     /
  *                     \   |                 /
  *                      +--[R3]-------------+
  *
- *   Preferred path before failure: SRC->R1->R2->R4->DST
+ *   Preferred path before failure: SRC->R1->R2->R4->DST  (if r2r4Metric < r3r4Metric)
  *   Backup path after failure:     SRC->R1->R3->R4->DST
- *   Link R2-R4 will fail at t=40s to demonstrate convergence
+ *   Equal-cost tie-break:          both paths active when r2r4Metric == r3r4Metric
+ *   Link R2-R4 fails at t=failureTime seconds
  *
  * =============================================================================
  * TTL-ICMP SCENARIO TOPOLOGY
@@ -95,33 +84,15 @@
  *   10.1.1.1                      10.1.4.2
  *
  *   4 hops from SRC to DST
- *   Packets with TTL=1,2,3 will expire at R1,R2,R3 respectively
+ *   Packets with TTL=1,2,3 expire at R1,R2,R3 respectively
+ *   Packets with TTL>=4 reach DST
  *
  * =============================================================================
- * PORT SELECTION WARNING
+ * PORT SELECTION
  * =============================================================================
- *
- * IMPORTANT: We use ports 50000+ for all application traffic to avoid
- * Wireshark decoding packets as "DISCARD" protocol.
- *
- * Port 9 is the well-known DISCARD service port (RFC 863). If you use port 9,
- * Wireshark will show Protocol=DISCARD and Info=Discard, making analysis
- * confusing. Always use high-numbered ports (50000+) for lab exercises.
- *
- * To verify correct port usage in Wireshark:
- *   - Check that Protocol column does NOT show "DISCARD"
- *   - UDP/TCP port numbers should show your chosen port (e.g., 50001)
- *
- * =============================================================================
- * QUESTIONS REFERENCE
- * =============================================================================
- *
- * [V] = Wireshark analysis verified by textbook
- * [W] = Wireshark analysis (tables/graphs/screenshots/statistics)
- * [C] = Simulation code with explanation
- * [B] = Both Wireshark analysis and simulation code
- * [T] = Textbook description/explanation only
- *
+ * Port 50001 is used for LSA messages (OSPF-like scenario).
+ * Port 50002 is used for data traffic (TTL-ICMP scenario).
+ * Port 9 (DISCARD) is intentionally avoided.
  * =============================================================================
  */
 
@@ -138,39 +109,82 @@
 #include <filesystem>
 #include <fstream>
 #include <sstream>
+#include <stdexcept>
 
 using namespace ns3;
 
 NS_LOG_COMPONENT_DEFINE("RoutingLab");
 
 // =============================================================================
-// OUTPUT DIRECTORY CONFIGURATION
-// =============================================================================
-// Output directory is at ns-3.46.1 level (NOT inside scratch)
-// This matches the lab document requirement for "lab 4 output"
+// OUTPUT DIRECTORY
 // =============================================================================
 static std::string g_outputDir = "scratch/d0002e/lab 4 output/";
 
 // =============================================================================
-// PORT CONFIGURATION - AVOID PORT 9 (DISCARD)
+// PORT CONSTANTS
 // =============================================================================
-// Guidance for [C] questions: These ports are used for application traffic.
-// Port 50001 is used for LSA messages in OSPF-like scenario.
-// Port 50002 is used for data traffic.
-// We explicitly avoid port 9 to prevent Wireshark DISCARD decoding.
-// =============================================================================
-static const uint16_t LSA_PORT = 50001;
+static const uint16_t LSA_PORT  = 50001;
 static const uint16_t DATA_PORT = 50002;
 
 // =============================================================================
-// PCAP ENABLED FLAG
+// GLOBAL PCAP FLAG
 // =============================================================================
 static bool g_pcapEnabled = false;
 
 // =============================================================================
+// CONFIGURATION STRUCT
+// =============================================================================
+// Holds every tunable parameter so they do not need to be threaded through
+// every function call individually.
+// =============================================================================
+struct LabConfig
+{
+    int         seed          = 100;
+    std::string scenario      = "lsdv";
+    std::string mode          = "ls";     // "ls" or "dv" for lsdv scenario
+    int         pcap          = 0;
+    bool        verbose       = false;
+    int         r3r4Metric    = 10;       // cost of R3-R4 link
+    int         r2r4Metric    = 1;        // cost of R2-R4 link
+    double      lsaInterval   = 10.0;    // OSPF-like LSA period (seconds)
+    double      failureTime   = 40.0;    // when R2-R4 link fails (seconds)
+    double      pingInterval  = 1.0;     // ICMP Echo Request interval (seconds)
+    std::string ttlList       = "1,2,3,4,64"; // comma-separated TTL values
+};
+
+// =============================================================================
+// HELPER: Parse comma-separated TTL list
+// =============================================================================
+std::vector<uint32_t>
+ParseTtlList(const std::string& s)
+{
+    std::vector<uint32_t> ttls;
+    std::stringstream ss(s);
+    std::string token;
+    while (std::getline(ss, token, ','))
+    {
+        if (token.empty()) continue;
+        int v = std::stoi(token);
+        if (v <= 0)
+        {
+            std::cerr << "ERROR: TTL values must be positive integers (got " << v << ")" << std::endl;
+            std::exit(1);
+        }
+        ttls.push_back(static_cast<uint32_t>(v));
+    }
+    if (ttls.empty())
+    {
+        std::cerr << "ERROR: --ttlList must contain at least one positive integer" << std::endl;
+        std::exit(1);
+    }
+    return ttls;
+}
+
+// =============================================================================
 // HELPER: Create output directory
 // =============================================================================
-void EnsureDirectory(const std::string& path)
+void
+EnsureDirectory(const std::string& path)
 {
     std::error_code ec;
     std::filesystem::create_directories(path, ec);
@@ -183,7 +197,8 @@ void EnsureDirectory(const std::string& path)
 // =============================================================================
 // HELPER: Verify PCAP file exists and has content
 // =============================================================================
-bool VerifyPcapFile(const std::string& filepath)
+bool
+VerifyPcapFile(const std::string& filepath)
 {
     std::error_code ec;
     if (!std::filesystem::exists(filepath, ec))
@@ -191,34 +206,26 @@ bool VerifyPcapFile(const std::string& filepath)
         std::cerr << "ERROR: PCAP file not found: " << filepath << std::endl;
         return false;
     }
-
     auto fileSize = std::filesystem::file_size(filepath, ec);
     if (ec || fileSize == 0)
     {
         std::cerr << "ERROR: PCAP file is empty: " << filepath << std::endl;
         return false;
     }
-
     std::cout << "OK: generated " << filepath << " (" << fileSize << " bytes)" << std::endl;
     return true;
 }
 
 // =============================================================================
-// HELPER: Tear down link between two nodes (for failure simulation)
+// HELPER: Tear down link between two nodes (simulates link failure)
 // =============================================================================
-// Guidance for [C] questions: This function simulates a link failure by
-// setting the IPv4 interfaces to "down" state. This triggers routing
-// protocol convergence behavior.
-//
-// For Distance Vector (RIP): Triggers route updates with increased metrics
-// For Link State (GlobalRouting): Triggers SPF recalculation
+// Guidance for [C] questions: Brings both IPv4 interfaces to "down" state,
+// triggering convergence in both LS (SPF recalculation) and DV (RIP updates).
 // =============================================================================
-void TearDownLink(Ptr<Node> nodeA, Ptr<Node> nodeB, uint32_t interfaceA, uint32_t interfaceB)
+void
+TearDownLink(Ptr<Node> nodeA, Ptr<Node> nodeB, uint32_t interfaceA, uint32_t interfaceB)
 {
-    NS_LOG_INFO("=== LINK FAILURE EVENT at t=" << Simulator::Now().GetSeconds() << "s ===");
-    NS_LOG_INFO("Bringing down interfaces: Node " << nodeA->GetId() << " iface " << interfaceA
-                << " and Node " << nodeB->GetId() << " iface " << interfaceB);
-
+    NS_LOG_INFO("=== LINK FAILURE at t=" << Simulator::Now().GetSeconds() << "s ===");
     nodeA->GetObject<Ipv4>()->SetDown(interfaceA);
     nodeB->GetObject<Ipv4>()->SetDown(interfaceB);
 }
@@ -226,12 +233,47 @@ void TearDownLink(Ptr<Node> nodeA, Ptr<Node> nodeB, uint32_t interfaceA, uint32_
 // =============================================================================
 // HELPER: Write topology information to file
 // =============================================================================
-void WriteTopologyInfo(const std::string& outputPath, const std::string& info)
+void
+WriteTopologyInfo(const std::string& outputPath, const std::string& info)
 {
     std::ofstream file(outputPath + "topology-info.txt");
     file << info;
     file.close();
     std::cout << "Topology info written to: " << outputPath << "topology-info.txt" << std::endl;
+}
+
+// =============================================================================
+// HELPER: Print effective configuration to stdout
+// =============================================================================
+void
+PrintEffectiveConfig(const LabConfig& cfg)
+{
+    std::cout << "--- Effective parameters ---" << std::endl;
+    std::cout << "  seed         = " << cfg.seed         << std::endl;
+    std::cout << "  scenario     = " << cfg.scenario     << std::endl;
+    if (cfg.scenario == "lsdv")
+    {
+        std::cout << "  mode         = " << cfg.mode         << std::endl;
+        std::cout << "  r3r4Metric   = " << cfg.r3r4Metric   << std::endl;
+        std::cout << "  r2r4Metric   = " << cfg.r2r4Metric   << std::endl;
+        std::cout << "  failureTime  = " << cfg.failureTime  << " s" << std::endl;
+        std::cout << "  pingInterval = " << cfg.pingInterval << " s" << std::endl;
+        if (cfg.r3r4Metric == cfg.r2r4Metric)
+        {
+            std::cout << "  NOTE: r3r4Metric == r2r4Metric -> equal-cost paths, "
+                         "observe tie-break behaviour" << std::endl;
+        }
+    }
+    if (cfg.scenario == "ospf-like")
+    {
+        std::cout << "  lsaInterval  = " << cfg.lsaInterval  << " s" << std::endl;
+    }
+    if (cfg.scenario == "ttl-icmp")
+    {
+        std::cout << "  ttlList      = " << cfg.ttlList      << std::endl;
+    }
+    std::cout << "  pcap         = " << cfg.pcap         << std::endl;
+    std::cout << "----------------------------" << std::endl;
 }
 
 // =============================================================================
@@ -241,23 +283,24 @@ void WriteTopologyInfo(const std::string& outputPath, const std::string& info)
 // =============================================================================
 //
 // Guidance for [C]/[B] questions:
-// This scenario demonstrates the difference between:
-//   - Link State (LS): Uses Dijkstra's algorithm, global view of network
-//   - Distance Vector (DV): Uses Bellman-Ford, distributed algorithm
-//
-// Key code sections for answering questions:
-//   - RipHelper setup (lines with "RipHelper") - DV configuration
-//   - Ipv4GlobalRoutingHelper (lines with "GlobalRouting") - LS configuration
-//   - SetInterfaceMetric - link cost/metric assignment
-//   - TearDownLink scheduling - link failure event
+//   LS mode  - Ipv4GlobalRoutingHelper (Dijkstra, global view)
+//   DV mode  - RipHelper (Bellman-Ford, distributed)
 //
 // Wireshark hints:
-//   - Filter "rip" to see RIP update messages (DV mode)
-//   - Filter "ip.ttl" to observe TTL decrement at each hop
-//   - Compare routing table convergence times between LS and DV
+//   - Filter "rip" for RIP updates (DV mode)
+//   - Filter "icmp" for ping traffic
+//   - Observe routing-tables.txt for convergence comparison
+//
+// New parameters used here:
+//   cfg.r3r4Metric  - cost of the backup R3-R4 link
+//   cfg.r2r4Metric  - cost of the preferred R2-R4 link (default 1)
+//   cfg.failureTime - when R2-R4 is brought down
+//   cfg.pingInterval - ICMP Echo Request interval
+//   cfg.seed        - controls timing jitter (reproducible)
 // =============================================================================
 
-void RunLsdvScenario(const std::string& outputPath, bool useLinkState)
+void
+RunLsdvScenario(const std::string& outputPath, bool useLinkState, const LabConfig& cfg)
 {
     std::string modeStr = useLinkState ? "Link State (GlobalRouting)" : "Distance Vector (RIP)";
     NS_LOG_INFO("=== Running LSDV Scenario - " << modeStr << " ===");
@@ -268,31 +311,40 @@ void RunLsdvScenario(const std::string& outputPath, bool useLinkState)
     std::cout << "========================================" << std::endl;
 
     // =========================================================================
-    // Guidance for [C] questions: Node Creation
-    // We create two endpoints and four routers.
-    // The routed core has one low-cost path and one higher-cost backup path.
+    // Seed-driven jitter for ping start time.
+    // Small bounded offset keeps results reproducible for the same seed while
+    // making different seeds produce slightly different packet timestamps.
+    // Route selection is NOT affected by the jitter.
     // =========================================================================
+    Ptr<UniformRandomVariable> jitter = CreateObject<UniformRandomVariable>();
+    jitter->SetAttribute("Min", DoubleValue(0.0));
+    jitter->SetAttribute("Max", DoubleValue(0.5));  // max 500 ms offset
+    double pingJitter = jitter->GetValue();
 
-    NS_LOG_INFO("Creating nodes...");
+    // =========================================================================
+    // Guidance for [C] questions: Node Creation
+    // Two endpoints (SRC, DST) and four routers (R1-R4).
+    // =========================================================================
+    NodeContainer routers;
+    NodeContainer endpoints;
     Ptr<Node> src = CreateObject<Node>();
-    Ptr<Node> r1 = CreateObject<Node>();
-    Ptr<Node> r2 = CreateObject<Node>();
-    Ptr<Node> r3 = CreateObject<Node>();
-    Ptr<Node> r4 = CreateObject<Node>();
+    Ptr<Node> r1  = CreateObject<Node>();
+    Ptr<Node> r2  = CreateObject<Node>();
+    Ptr<Node> r3  = CreateObject<Node>();
+    Ptr<Node> r4  = CreateObject<Node>();
     Ptr<Node> dst = CreateObject<Node>();
 
     Names::Add("SRC", src);
-    Names::Add("R1", r1);
-    Names::Add("R2", r2);
-    Names::Add("R3", r3);
-    Names::Add("R4", r4);
+    Names::Add("R1",  r1);
+    Names::Add("R2",  r2);
+    Names::Add("R3",  r3);
+    Names::Add("R4",  r4);
     Names::Add("DST", dst);
 
-    NodeContainer routers(r1, r2, r3, r4);
-    NodeContainer endpoints(src, dst);
+    routers.Add(r1); routers.Add(r2); routers.Add(r3); routers.Add(r4);
+    endpoints.Add(src); endpoints.Add(dst);
     NodeContainer allNodes(src, r1, r2, r3, r4, dst);
 
-    // Node containers for each link
     NodeContainer linkSrcR1(src, r1);
     NodeContainer linkR1R2(r1, r2);
     NodeContainer linkR1R3(r1, r3);
@@ -302,122 +354,121 @@ void RunLsdvScenario(const std::string& outputPath, bool useLinkState)
     NodeContainer linkR4Dst(r4, dst);
 
     // =========================================================================
-    // Guidance for [C] questions: Channel/Link Creation
-    // Using CSMA (Carrier Sense Multiple Access) channels similar to Ethernet
-    // DataRate and Delay affect routing metrics and convergence time
+    // Guidance for [C] questions: Channel creation (CSMA / Ethernet-like)
     // =========================================================================
-
-    NS_LOG_INFO("Creating channels...");
     CsmaHelper csma;
     csma.SetChannelAttribute("DataRate", DataRateValue(DataRate("100Mbps")));
     csma.SetChannelAttribute("Delay", TimeValue(MilliSeconds(2)));
 
     NetDeviceContainer devSrcR1 = csma.Install(linkSrcR1);
-    NetDeviceContainer devR1R2 = csma.Install(linkR1R2);
-    NetDeviceContainer devR1R3 = csma.Install(linkR1R3);
-    NetDeviceContainer devR2R3 = csma.Install(linkR2R3);
-    NetDeviceContainer devR3R4 = csma.Install(linkR3R4);
-    NetDeviceContainer devR2R4 = csma.Install(linkR2R4);
+    NetDeviceContainer devR1R2  = csma.Install(linkR1R2);
+    NetDeviceContainer devR1R3  = csma.Install(linkR1R3);
+    NetDeviceContainer devR2R3  = csma.Install(linkR2R3);
+    NetDeviceContainer devR3R4  = csma.Install(linkR3R4);
+    NetDeviceContainer devR2R4  = csma.Install(linkR2R4);
     NetDeviceContainer devR4Dst = csma.Install(linkR4Dst);
 
     // =========================================================================
-    // Guidance for [C]/[B] questions: Routing Protocol Selection
+    // Guidance for [C]/[B] questions: Routing protocol selection
     //
-    // LINK STATE MODE (useLinkState=true):
-    //   - Uses Ipv4GlobalRoutingHelper which computes shortest paths using
-    //     Dijkstra's algorithm based on global network view
-    //   - Routes are computed at simulation start and recomputed on changes
-    //   - Mimics OSPF-like behavior (centralized SPF computation)
+    // LS mode  - GlobalRouting with RespondToInterfaceEvents=true
+    //            Recomputes shortest paths via Dijkstra on topology changes.
     //
-    // DISTANCE VECTOR MODE (useLinkState=false):
-    //   - Uses RipHelper which implements RIP (Routing Information Protocol)
-    //   - Routes are learned through periodic updates from neighbors
-    //   - Uses Bellman-Ford algorithm with distributed computation
-    //   - RIP updates visible in Wireshark as UDP port 520 packets
+    // DV mode  - RIP with per-interface metrics.
+    //            r3r4Metric (default 10) makes R3-R4 the backup path.
+    //            r2r4Metric (default 1) keeps R2-R4 as the preferred path.
+    //            When r2r4Metric == r3r4Metric both paths are equal-cost.
     // =========================================================================
-
-    NS_LOG_INFO("Configuring routing protocol: " << modeStr);
-
     InternetStackHelper internet;
     internet.SetIpv6StackInstall(false);
 
     if (useLinkState)
     {
-        // Link State mode: Use GlobalRouting (Dijkstra-based)
-        // Guidance: RespondToInterfaceEvents enables route recomputation on failure
         Config::SetDefault("ns3::Ipv4GlobalRouting::RespondToInterfaceEvents",
-                          BooleanValue(true));
+                           BooleanValue(true));
         internet.Install(allNodes);
     }
     else
     {
-        // Distance Vector mode: Use RIP
+        // =====================================================================
+        // Guidance for [C]/[B] questions: RIP interface metrics
+        //
+        // ExcludeInterface: prevents RIP from advertising those subnets
+        //   r1 iface 1 = SRC-R1 link (static, not advertised by RIP)
+        //   r4 iface 3 = R4-DST link (static, not advertised by RIP)
+        //
+        // SetInterfaceMetric: sets per-hop cost for Bellman-Ford computation
+        //   r3r4Metric (default 10) -> R3-R4 path costs more -> R2-R4 preferred
+        //   r2r4Metric (default 1)  -> R2-R4 path costs less -> preferred path
+        //
+        //   Path costs (SRC to DST):
+        //     via R2: 1 + 1 + r2r4Metric + 1
+        //     via R3: 1 + 1 + r3r4Metric + 1
+        //   R2 path is preferred when r2r4Metric < r3r4Metric.
+        //   Equal-cost when r2r4Metric == r3r4Metric.
+        //   R3 path preferred when r2r4Metric > r3r4Metric.
+        //
+        // The same logic applies in LS mode via ifR3R4.SetMetric / ifR2R4.SetMetric
+        // below, which sets interface costs for Dijkstra's algorithm.
+        // =====================================================================
         RipHelper ripRouting;
-
-        // =====================================================================
-        // Guidance for [C] questions: RIP Interface Configuration
-        // ExcludeInterface: Exclude interfaces from RIP (e.g., end hosts)
-        // SetInterfaceMetric: Set link costs (affects path selection)
-        // =====================================================================
-
-        // =====================================================================
-        // Guidance for [C]/[B] questions: Link Metric Configuration
-        // The R3-R4 link has higher cost, so traffic initially prefers the
-        // R1-R2-R4 path. When R2-R4 fails, routing converges to R1-R3-R4.
-        // =====================================================================
-        ripRouting.ExcludeInterface(r1, 1); // Keep the SRC access network static
-        ripRouting.ExcludeInterface(r4, 3); // Keep the DST access network static
-        ripRouting.SetInterfaceMetric(r3, 3, 10);
-        ripRouting.SetInterfaceMetric(r4, 1, 10);
+        ripRouting.ExcludeInterface(r1, 1);
+        ripRouting.ExcludeInterface(r4, 3);
+        ripRouting.SetInterfaceMetric(r3, 3, cfg.r3r4Metric);  // r3 iface 3 = to R4 (10.1.5.x)
+        ripRouting.SetInterfaceMetric(r4, 1, cfg.r3r4Metric);  // r4 iface 1 = to R3 (10.1.5.x)
+        ripRouting.SetInterfaceMetric(r2, 3, cfg.r2r4Metric);  // r2 iface 3 = to R4 (10.1.6.x)
+        ripRouting.SetInterfaceMetric(r4, 2, cfg.r2r4Metric);  // r4 iface 2 = to R2 (10.1.6.x)
 
         Ipv4ListRoutingHelper listRH;
         listRH.Add(ripRouting, 0);
-
         internet.SetRoutingHelper(listRH);
         internet.Install(routers);
 
-        // Install basic internet stack on endpoints (no RIP)
         InternetStackHelper internetEndpoints;
         internetEndpoints.SetIpv6StackInstall(false);
         internetEndpoints.Install(endpoints);
     }
 
     // =========================================================================
-    // Guidance for [C]/[B] questions: IP Address Assignment
-    // Each link is a separate subnet (10.1.x.0/24)
-    // These addresses are visible in Wireshark IP headers
+    // Guidance for [C]/[B] questions: IP address assignment
+    // Each link is a /24 subnet.  These addresses appear in Wireshark headers.
     // =========================================================================
-
-    NS_LOG_INFO("Assigning IP addresses...");
     Ipv4AddressHelper ipv4;
 
-    ipv4.SetBase("10.1.1.0", "255.255.255.0");  // SRC-R1 subnet
+    ipv4.SetBase("10.1.1.0", "255.255.255.0");
     Ipv4InterfaceContainer ifSrcR1 = ipv4.Assign(devSrcR1);
 
-    ipv4.SetBase("10.1.2.0", "255.255.255.0");  // R1-R2 subnet
-    Ipv4InterfaceContainer ifR1R2 = ipv4.Assign(devR1R2);
+    ipv4.SetBase("10.1.2.0", "255.255.255.0");
+    Ipv4InterfaceContainer ifR1R2  = ipv4.Assign(devR1R2);
 
-    ipv4.SetBase("10.1.3.0", "255.255.255.0");  // R1-R3 subnet
-    Ipv4InterfaceContainer ifR1R3 = ipv4.Assign(devR1R3);
+    ipv4.SetBase("10.1.3.0", "255.255.255.0");
+    Ipv4InterfaceContainer ifR1R3  = ipv4.Assign(devR1R3);
 
-    ipv4.SetBase("10.1.4.0", "255.255.255.0");  // R2-R3 subnet
-    Ipv4InterfaceContainer ifR2R3 = ipv4.Assign(devR2R3);
+    ipv4.SetBase("10.1.4.0", "255.255.255.0");
+    Ipv4InterfaceContainer ifR2R3  = ipv4.Assign(devR2R3);
 
-    ipv4.SetBase("10.1.5.0", "255.255.255.0");  // R3-R4 subnet (higher metric)
-    Ipv4InterfaceContainer ifR3R4 = ipv4.Assign(devR3R4);
+    ipv4.SetBase("10.1.5.0", "255.255.255.0");
+    Ipv4InterfaceContainer ifR3R4  = ipv4.Assign(devR3R4);
 
-    ipv4.SetBase("10.1.6.0", "255.255.255.0");  // R2-R4 subnet
-    Ipv4InterfaceContainer ifR2R4 = ipv4.Assign(devR2R4);
+    ipv4.SetBase("10.1.6.0", "255.255.255.0");
+    Ipv4InterfaceContainer ifR2R4  = ipv4.Assign(devR2R4);
 
-    ipv4.SetBase("10.1.7.0", "255.255.255.0");  // R4-DST subnet
+    ipv4.SetBase("10.1.7.0", "255.255.255.0");
     Ipv4InterfaceContainer ifR4Dst = ipv4.Assign(devR4Dst);
 
-    ifR3R4.SetMetric(0, 10);
-    ifR3R4.SetMetric(1, 10);
-
     // =========================================================================
-    // Configure static routes for endpoints (in DV mode) or global routes
+    // Guidance for [C]/[W+X] questions: Interface metrics for LS mode
+    // Ipv4GlobalRouting reads these per-interface costs during Dijkstra.
+    // Changing r3r4Metric and r2r4Metric here shifts which path is preferred.
+    //   Default: r2r4Metric=1, r3r4Metric=10 -> R2-R4 path preferred.
+    //   To make R3-R4 preferred, set r2r4Metric > r3r4Metric
+    //     (e.g. --r2r4Metric=15 --r3r4Metric=5).
+    //   To get equal-cost ECMP, set r2r4Metric == r3r4Metric.
     // =========================================================================
+    ifR3R4.SetMetric(0, cfg.r3r4Metric);  // R3's interface toward R4
+    ifR3R4.SetMetric(1, cfg.r3r4Metric);  // R4's interface toward R3
+    ifR2R4.SetMetric(0, cfg.r2r4Metric);  // R2's interface toward R4
+    ifR2R4.SetMetric(1, cfg.r2r4Metric);  // R4's interface toward R2
 
     if (useLinkState)
     {
@@ -425,109 +476,114 @@ void RunLsdvScenario(const std::string& outputPath, bool useLinkState)
     }
     else
     {
-        // Set default routes for source and destination
         Ptr<Ipv4StaticRouting> staticRouting;
         staticRouting = Ipv4RoutingHelper::GetRouting<Ipv4StaticRouting>(
             src->GetObject<Ipv4>()->GetRoutingProtocol());
-        staticRouting->SetDefaultRoute("10.1.1.2", 1);  // Via R1
+        staticRouting->SetDefaultRoute("10.1.1.2", 1);
 
         staticRouting = Ipv4RoutingHelper::GetRouting<Ipv4StaticRouting>(
             dst->GetObject<Ipv4>()->GetRoutingProtocol());
-        staticRouting->SetDefaultRoute("10.1.7.1", 1);  // Via R4
+        staticRouting->SetDefaultRoute("10.1.7.1", 1);
     }
 
     // =========================================================================
-    // Guidance for [C]/[B] questions: Application Traffic Generation
-    // Using Ping (ICMP Echo) to generate traffic and verify connectivity
-    // Ping shows both path selection and TTL behavior
+    // Guidance for [C]/[B] questions: Ping application
+    // Sends ICMP Echo Requests from SRC to DST.
+    // pingInterval is parameterised; start time has small seed-driven jitter.
     // =========================================================================
+    double pingStart = 5.0 + pingJitter;
+    double simEnd    = std::max(95.0, cfg.failureTime + 55.0);
+    double pingStop  = simEnd - 5.0;
 
-    NS_LOG_INFO("Creating ping application...");
-    PingHelper ping(ifR4Dst.GetAddress(1));  // Ping to DST's access-network address
-    ping.SetAttribute("Interval", TimeValue(Seconds(1)));
+    PingHelper ping(ifR4Dst.GetAddress(1));
+    ping.SetAttribute("Interval", TimeValue(Seconds(cfg.pingInterval)));
     ping.SetAttribute("Size", UintegerValue(64));
     ping.SetAttribute("VerboseMode", EnumValue(Ping::VerboseMode::VERBOSE));
 
     ApplicationContainer pingApp = ping.Install(src);
-    pingApp.Start(Seconds(5));
-    pingApp.Stop(Seconds(90));
+    pingApp.Start(Seconds(pingStart));
+    pingApp.Stop(Seconds(pingStop));
 
     // =========================================================================
-    // Guidance for [C]/[B] questions: Link Failure Event
-    // At t=40s, we bring down the preferred R2-R4 link
-    // This triggers routing convergence:
-    //   - LS mode: SPF recalculation, fast convergence
-    //   - DV mode: RIP updates propagate, slower convergence
+    // Guidance for [C]/[B] questions: Link failure event
+    // R2's interface to R4 is index 3; R4's interface to R2 is index 2.
+    // failureTime is parameterised (default 40 s).
+    //   - LS: triggers immediate SPF recalculation -> fast convergence
+    //   - DV: triggers RIP count-to-infinity / split horizon -> slower convergence
     // =========================================================================
-
-    NS_LOG_INFO("Scheduling link failure at t=40s...");
-    // R2's interface to R4 is interface 3, R4's interface to R2 is interface 2
-    Simulator::Schedule(Seconds(40), &TearDownLink, r2, r4, 3, 2);
+    NS_LOG_INFO("Scheduling link failure at t=" << cfg.failureTime << "s");
+    Simulator::Schedule(Seconds(cfg.failureTime), &TearDownLink, r2, r4, 3, 2);
 
     // =========================================================================
-    // Guidance for [W] questions: Routing Table Logging
-    // Print routing tables at different times to observe convergence
+    // Routing table snapshots for convergence analysis
     // =========================================================================
-
     Ptr<OutputStreamWrapper> routingStream =
         Create<OutputStreamWrapper>(outputPath + "routing-tables.txt", std::ios::out);
 
     Ipv4RoutingHelper::PrintRoutingTableAllAt(Seconds(10), routingStream);
-    Ipv4RoutingHelper::PrintRoutingTableAllAt(Seconds(35), routingStream);
-    Ipv4RoutingHelper::PrintRoutingTableAllAt(Seconds(45), routingStream);
-    Ipv4RoutingHelper::PrintRoutingTableAllAt(Seconds(60), routingStream);
-    Ipv4RoutingHelper::PrintRoutingTableAllAt(Seconds(80), routingStream);
+    Ipv4RoutingHelper::PrintRoutingTableAllAt(
+        Seconds(std::max(11.0, cfg.failureTime - 5.0)), routingStream);
+    Ipv4RoutingHelper::PrintRoutingTableAllAt(
+        Seconds(cfg.failureTime + 5.0), routingStream);
+    Ipv4RoutingHelper::PrintRoutingTableAllAt(
+        Seconds(cfg.failureTime + 20.0), routingStream);
+    Ipv4RoutingHelper::PrintRoutingTableAllAt(
+        Seconds(cfg.failureTime + 40.0), routingStream);
 
     // =========================================================================
-    // Guidance for [W] questions: PCAP Capture Points
-    // Enable PCAP on all links to capture:
-    //   - RIP update messages (DV mode) - UDP port 520
-    //   - ICMP ping traffic
-    //   - Routing changes after link failure
-    //
+    // PCAP capture
     // Wireshark filters:
-    //   - "rip" - Show RIP protocol messages
-    //   - "icmp" - Show ICMP Echo Request/Reply
-    //   - "ip.ttl" - Observe TTL changes at each hop
+    //   "rip"  - RIP update messages (DV mode)
+    //   "icmp" - ICMP ping traffic
     // =========================================================================
-
     if (g_pcapEnabled)
     {
         csma.EnablePcap(outputPath + "lsdv-src-r1", devSrcR1.Get(0), true);
-        csma.EnablePcap(outputPath + "lsdv-r1-r2", devR1R2.Get(0), true);
-        csma.EnablePcap(outputPath + "lsdv-r1-r3", devR1R3.Get(0), true);
-        csma.EnablePcap(outputPath + "lsdv-r2-r3", devR2R3.Get(0), true);
-        csma.EnablePcap(outputPath + "lsdv-r3-r4", devR3R4.Get(0), true);
-        csma.EnablePcap(outputPath + "lsdv-r2-r4", devR2R4.Get(0), true);
-        csma.EnablePcap(outputPath + "lsdv-r4-dst", devR4Dst.Get(0), true);
+        csma.EnablePcap(outputPath + "lsdv-r1-r2",  devR1R2.Get(0),  true);
+        csma.EnablePcap(outputPath + "lsdv-r1-r3",  devR1R3.Get(0),  true);
+        csma.EnablePcap(outputPath + "lsdv-r2-r3",  devR2R3.Get(0),  true);
+        csma.EnablePcap(outputPath + "lsdv-r3-r4",  devR3R4.Get(0),  true);
+        csma.EnablePcap(outputPath + "lsdv-r2-r4",  devR2R4.Get(0),  true);
+        csma.EnablePcap(outputPath + "lsdv-r4-dst",  devR4Dst.Get(0), true);
     }
 
-    // Write topology information
+    // Topology info with effective parameter values
     std::stringstream topoInfo;
     topoInfo << "LSDV Scenario Topology - " << modeStr << "\n";
     topoInfo << "=========================================\n\n";
-    topoInfo << "Nodes:\n";
-    topoInfo << "  SRC: 10.1.1.1 (to R1)\n";
-    topoInfo << "  R1:  10.1.1.2 (to SRC), 10.1.2.1 (to R2), 10.1.3.1 (to R3)\n";
-    topoInfo << "  R2:  10.1.2.2 (to R1), 10.1.4.1 (to R3), 10.1.6.1 (to R4)\n";
-    topoInfo << "  R3:  10.1.3.2 (to R1), 10.1.4.2 (to R2), 10.1.5.1 (to R4)\n";
-    topoInfo << "  R4:  10.1.5.2 (to R3), 10.1.6.2 (to R2), 10.1.7.1 (to DST)\n";
-    topoInfo << "  DST: 10.1.7.2 (to R4)\n\n";
+    topoInfo << "Effective parameters:\n";
+    topoInfo << "  seed          = " << cfg.seed         << "\n";
+    topoInfo << "  r3r4Metric    = " << cfg.r3r4Metric   << "\n";
+    topoInfo << "  r2r4Metric    = " << cfg.r2r4Metric   << "\n";
+    topoInfo << "  failureTime   = " << cfg.failureTime  << " s\n";
+    topoInfo << "  pingInterval  = " << cfg.pingInterval << " s\n";
+    if (cfg.r3r4Metric == cfg.r2r4Metric)
+    {
+        topoInfo << "  NOTE: equal-cost paths (tie-break experiment)\n";
+    }
+    topoInfo << "\nNodes:\n";
+    topoInfo << "  SRC: 10.1.1.1\n";
+    topoInfo << "  R1:  10.1.1.2, 10.1.2.1, 10.1.3.1\n";
+    topoInfo << "  R2:  10.1.2.2, 10.1.4.1, 10.1.6.1\n";
+    topoInfo << "  R3:  10.1.3.2, 10.1.4.2, 10.1.5.1\n";
+    topoInfo << "  R4:  10.1.5.2, 10.1.6.2, 10.1.7.1\n";
+    topoInfo << "  DST: 10.1.7.2\n\n";
     topoInfo << "Links:\n";
     topoInfo << "  SRC-R1: 10.1.1.0/24 (metric 1)\n";
     topoInfo << "  R1-R2:  10.1.2.0/24 (metric 1)\n";
     topoInfo << "  R1-R3:  10.1.3.0/24 (metric 1)\n";
     topoInfo << "  R2-R3:  10.1.4.0/24 (metric 1)\n";
-    topoInfo << "  R3-R4:  10.1.5.0/24 (metric 10, backup path)\n";
-    topoInfo << "  R2-R4:  10.1.6.0/24 (metric 1, FAILS at t=40s)\n";
+    topoInfo << "  R3-R4:  10.1.5.0/24 (metric " << cfg.r3r4Metric << ")\n";
+    topoInfo << "  R2-R4:  10.1.6.0/24 (metric " << cfg.r2r4Metric
+             << ", FAILS at t=" << cfg.failureTime << "s)\n";
     topoInfo << "  R4-DST: 10.1.7.0/24 (metric 1)\n\n";
     topoInfo << "Events:\n";
-    topoInfo << "  t=5s:  Ping starts (SRC -> 10.1.7.2)\n";
-    topoInfo << "  t=40s: R2-R4 link fails\n";
-    topoInfo << "  t=90s: Simulation ends\n";
+    topoInfo << "  t=" << pingStart << "s: Ping starts (SRC->10.1.7.2)\n";
+    topoInfo << "  t=" << cfg.failureTime << "s: R2-R4 link fails\n";
+    topoInfo << "  t=" << simEnd << "s: Simulation ends\n";
     WriteTopologyInfo(outputPath, topoInfo.str());
 
-    Simulator::Stop(Seconds(95));
+    Simulator::Stop(Seconds(simEnd));
     Simulator::Run();
     Simulator::Destroy();
 
@@ -540,42 +596,33 @@ void RunLsdvScenario(const std::string& outputPath, bool useLinkState)
 // =============================================================================
 // =============================================================================
 //
-// IMPORTANT NOTE: This is an instructional OSPF-like approximation, NOT a full
-// OSPF implementation. ns-3's basic internet module does not include OSPF.
-//
-// This scenario demonstrates OSPF concepts:
-//   - Periodic Link State Advertisements (LSAs) flooded between routers
-//   - LSAs contain link information (neighbors, costs)
-//   - Flooding ensures all routers have consistent network view
+// IMPORTANT: This is an instructional approximation, NOT a full OSPF
+// implementation.  ns-3's basic internet module does not include OSPF.
 //
 // Guidance for [C]/[B] questions:
-//   - LsaApplication class sends periodic LSA packets
-//   - LSAs are sent via UDP to port 50001 (avoiding DISCARD port)
-//   - Each router floods LSAs to all neighbors
+//   - LsaApplication sends periodic LSAs on UDP port 50001
+//   - lsaInterval is parameterised (default 10 s)
+//   - Each router floods LSAs to both neighbours in the triangle topology
 //
 // Wireshark hints:
-//   - Filter "udp.port==50001" to see LSA packets
-//   - LSA payload contains router ID and link information
-//   - Observe periodic LSA flooding interval
-// =============================================================================
-
-// =============================================================================
-// Custom LSA Application for OSPF-like behavior
-// =============================================================================
-// Guidance for [C] questions: This application simulates OSPF LSA flooding.
-// Each router periodically sends LSA messages to all neighbors.
-// LSA contains: Router ID, Sequence Number, Link Information
+//   - Filter "udp.port==50001" for LSA packets
+//   - Observe LSA flooding period (equals lsaInterval)
+//   - LSA payload: RouterID, SeqNo, neighbour list
+//
+// New parameter used here:
+//   cfg.lsaInterval  - LSA flooding period (default 10 s)
+//   cfg.seed         - controls per-router LSA start jitter (reproducible)
 // =============================================================================
 
 class LsaApplication : public Application
 {
-public:
+  public:
     static TypeId GetTypeId()
     {
         static TypeId tid = TypeId("ns3::LsaApplication")
-            .SetParent<Application>()
-            .SetGroupName("Applications")
-            .AddConstructor<LsaApplication>();
+                                .SetParent<Application>()
+                                .SetGroupName("Applications")
+                                .AddConstructor<LsaApplication>();
         return tid;
     }
 
@@ -585,15 +632,15 @@ public:
     void Setup(std::vector<Ipv4Address> neighbors, uint32_t routerId, Time interval)
     {
         m_neighbors = neighbors;
-        m_routerId = routerId;
-        m_interval = interval;
+        m_routerId  = routerId;
+        m_interval  = interval;
     }
 
-private:
+  private:
     virtual void StartApplication() override
     {
         m_running = true;
-        m_socket = Socket::CreateSocket(GetNode(), UdpSocketFactory::GetTypeId());
+        m_socket  = Socket::CreateSocket(GetNode(), UdpSocketFactory::GetTypeId());
         m_socket->Bind();
         SendLsa();
     }
@@ -601,10 +648,7 @@ private:
     virtual void StopApplication() override
     {
         m_running = false;
-        if (m_socket)
-        {
-            m_socket->Close();
-        }
+        if (m_socket) m_socket->Close();
     }
 
     void SendLsa()
@@ -612,53 +656,40 @@ private:
         if (!m_running) return;
 
         // =====================================================================
-        // Guidance for [C]/[B] questions: LSA Packet Format
-        // The LSA packet contains:
-        //   - Router ID (4 bytes)
-        //   - Sequence Number (4 bytes)
-        //   - Number of neighbors (4 bytes)
-        //   - Neighbor addresses (4 bytes each)
-        //
-        // This mimics OSPF LSA structure (simplified for educational purposes)
+        // Guidance for [C]/[B] questions: LSA packet format
+        //   RouterID | SeqNo | neighbour count | neighbour addresses
+        // This mimics a simplified OSPF LSA.
         // =====================================================================
-
-        // Create LSA payload
         std::stringstream lsaData;
         lsaData << "LSA|RouterID=" << m_routerId
                 << "|Seq=" << m_sequenceNumber
                 << "|Neighbors=" << m_neighbors.size();
-        for (const auto& neighbor : m_neighbors)
-        {
-            lsaData << "|" << neighbor;
-        }
+        for (const auto& n : m_neighbors)
+            lsaData << "|" << n;
 
         std::string lsaStr = lsaData.str();
         Ptr<Packet> packet = Create<Packet>((uint8_t*)lsaStr.c_str(), lsaStr.length());
 
-        // Flood LSA to all neighbors
-        for (const auto& neighbor : m_neighbors)
-        {
-            m_socket->SendTo(packet, 0, InetSocketAddress(neighbor, LSA_PORT));
-        }
+        for (const auto& n : m_neighbors)
+            m_socket->SendTo(packet, 0, InetSocketAddress(n, LSA_PORT));
 
+        NS_LOG_INFO("Router " << m_routerId << " LSA seq=" << m_sequenceNumber
+                              << " -> " << m_neighbors.size() << " neighbours");
         m_sequenceNumber++;
 
-        NS_LOG_INFO("Router " << m_routerId << " sent LSA seq=" << (m_sequenceNumber-1)
-                    << " to " << m_neighbors.size() << " neighbors");
-
-        // Schedule next LSA
         Simulator::Schedule(m_interval, &LsaApplication::SendLsa, this);
     }
 
-    Ptr<Socket> m_socket;
+    Ptr<Socket>              m_socket;
     std::vector<Ipv4Address> m_neighbors;
-    uint32_t m_routerId;
-    Time m_interval;
-    bool m_running;
-    uint32_t m_sequenceNumber;
+    uint32_t                 m_routerId;
+    Time                     m_interval;
+    bool                     m_running;
+    uint32_t                 m_sequenceNumber;
 };
 
-void RunOspfLikeScenario(const std::string& outputPath)
+void
+RunOspfLikeScenario(const std::string& outputPath, const LabConfig& cfg)
 {
     NS_LOG_INFO("=== Running OSPF-Like Scenario ===");
 
@@ -666,107 +697,110 @@ void RunOspfLikeScenario(const std::string& outputPath)
     std::cout << "========================================" << std::endl;
     std::cout << "OSPF-Like LSA Flooding Scenario" << std::endl;
     std::cout << "========================================" << std::endl;
-    std::cout << "NOTE: This is an instructional approximation of OSPF." << std::endl;
-    std::cout << "LSA packets are sent on UDP port " << LSA_PORT << std::endl;
-    std::cout << std::endl;
+    std::cout << "NOTE: Instructional OSPF approximation." << std::endl;
+    std::cout << "LSA port: " << LSA_PORT << " | interval: " << cfg.lsaInterval << "s" << std::endl;
 
     // =========================================================================
-    // Guidance for [C] questions: Topology for OSPF-like scenario
+    // Seed-driven jitter for LSA start offsets.
+    // Different seeds shift when each router first floods its LSA, producing
+    // slightly different packet timestamps without changing the topology or
+    // the steady-state flooding behaviour.
+    // =========================================================================
+    Ptr<UniformRandomVariable> jitter = CreateObject<UniformRandomVariable>();
+    jitter->SetAttribute("Min", DoubleValue(0.0));
+    jitter->SetAttribute("Max", DoubleValue(0.5));
+
+    double j1 = jitter->GetValue();   // R1 start offset
+    double j2 = jitter->GetValue();   // R2 start offset
+    double j3 = jitter->GetValue();   // R3 start offset
+
+    // =========================================================================
     // Triangle topology: R1 -- R2 -- R3 -- R1
-    // Each router has 2 neighbors and floods LSAs to both
     // =========================================================================
-
-    NS_LOG_INFO("Creating router nodes...");
     NodeContainer routers;
     routers.Create(3);
-
     Names::Add("R1", routers.Get(0));
     Names::Add("R2", routers.Get(1));
     Names::Add("R3", routers.Get(2));
 
-    // Create links
     PointToPointHelper p2p;
     p2p.SetDeviceAttribute("DataRate", StringValue("100Mbps"));
     p2p.SetChannelAttribute("Delay", StringValue("2ms"));
-
-    // =========================================================================
-    // Guidance for [C] questions: Link Metric Configuration
-    // In OSPF, interface costs affect shortest path calculation
-    // Here we set costs via metric attribute (for documentation)
-    // =========================================================================
 
     NetDeviceContainer devR1R2 = p2p.Install(routers.Get(0), routers.Get(1));
     NetDeviceContainer devR2R3 = p2p.Install(routers.Get(1), routers.Get(2));
     NetDeviceContainer devR3R1 = p2p.Install(routers.Get(2), routers.Get(0));
 
-    // Install Internet stack with global routing
     InternetStackHelper internet;
     internet.Install(routers);
 
-    // =========================================================================
-    // Guidance for [C]/[B] questions: IP Address Assignment for OSPF
-    // Addresses are used for LSA destination and router identification
-    // =========================================================================
-
     Ipv4AddressHelper ipv4;
-
-    ipv4.SetBase("10.0.1.0", "255.255.255.0");  // R1-R2 link
+    ipv4.SetBase("10.0.1.0", "255.255.255.0");
     Ipv4InterfaceContainer ifR1R2 = ipv4.Assign(devR1R2);
-
-    ipv4.SetBase("10.0.2.0", "255.255.255.0");  // R2-R3 link
+    ipv4.SetBase("10.0.2.0", "255.255.255.0");
     Ipv4InterfaceContainer ifR2R3 = ipv4.Assign(devR2R3);
-
-    ipv4.SetBase("10.0.3.0", "255.255.255.0");  // R3-R1 link
+    ipv4.SetBase("10.0.3.0", "255.255.255.0");
     Ipv4InterfaceContainer ifR3R1 = ipv4.Assign(devR3R1);
 
     Ipv4GlobalRoutingHelper::PopulateRoutingTables();
 
     // =========================================================================
-    // Guidance for [C]/[B] questions: LSA Application Setup
-    // Each router runs LsaApplication that:
-    //   1. Sends periodic LSAs every 10 seconds
-    //   2. Floods LSAs to all direct neighbors
-    //   3. Includes router ID and neighbor list in LSA
-    //
-    // This mimics OSPF Hello/LSA behavior (simplified)
+    // Guidance for [C]/[B] questions: LSA application setup
+    // Each router periodically floods LSAs to its two direct neighbours.
+    // lsaInterval controls the flooding period (parameterised).
     // =========================================================================
+    Time interval = Seconds(cfg.lsaInterval);
+    // simEnd is fixed so that changing lsaInterval changes the *rate* of LSA
+    // floods seen in Wireshark, not the total number.  With a fixed 65 s window:
+    //   lsaInterval=5  -> ~12 floods per router  (~24 packets on each link)
+    //   lsaInterval=10 -> ~6  floods per router  (~12 packets on each link)
+    //   lsaInterval=30 -> ~2  floods per router  (~4  packets on each link)
+    // Students can compare the inter-packet time gap in Wireshark to answer Q7.
+    double simEnd = 65.0;
 
-    NS_LOG_INFO("Setting up LSA applications...");
-
-    // R1's neighbors: R2 (10.0.1.2) and R3 (10.0.3.1)
+    // R1: neighbours are R2 (10.0.1.2) and R3-side of R3R1 (10.0.3.1)
     Ptr<LsaApplication> lsaR1 = CreateObject<LsaApplication>();
-    std::vector<Ipv4Address> neighborsR1 = {ifR1R2.GetAddress(1), ifR3R1.GetAddress(0)};
-    lsaR1->Setup(neighborsR1, 1, Seconds(10));
+    lsaR1->Setup({ifR1R2.GetAddress(1), ifR3R1.GetAddress(0)}, 1, interval);
     routers.Get(0)->AddApplication(lsaR1);
-    lsaR1->SetStartTime(Seconds(1));
-    lsaR1->SetStopTime(Seconds(60));
+    lsaR1->SetStartTime(Seconds(1.0 + j1));
+    lsaR1->SetStopTime(Seconds(simEnd - 5.0));
 
-    // R2's neighbors: R1 (10.0.1.1) and R3 (10.0.2.2)
+    // R2: neighbours are R1 (10.0.1.1) and R3 (10.0.2.2)
     Ptr<LsaApplication> lsaR2 = CreateObject<LsaApplication>();
-    std::vector<Ipv4Address> neighborsR2 = {ifR1R2.GetAddress(0), ifR2R3.GetAddress(1)};
-    lsaR2->Setup(neighborsR2, 2, Seconds(10));
+    lsaR2->Setup({ifR1R2.GetAddress(0), ifR2R3.GetAddress(1)}, 2, interval);
     routers.Get(1)->AddApplication(lsaR2);
-    lsaR2->SetStartTime(Seconds(2));  // Slight offset to avoid collision
-    lsaR2->SetStopTime(Seconds(60));
+    lsaR2->SetStartTime(Seconds(2.0 + j2));
+    lsaR2->SetStopTime(Seconds(simEnd - 5.0));
 
-    // R3's neighbors: R2 (10.0.2.1) and R1 (10.0.3.2)
+    // R3: neighbours are R2 (10.0.2.1) and R1-side of R3R1 (10.0.3.2)
     Ptr<LsaApplication> lsaR3 = CreateObject<LsaApplication>();
-    std::vector<Ipv4Address> neighborsR3 = {ifR2R3.GetAddress(0), ifR3R1.GetAddress(1)};
-    lsaR3->Setup(neighborsR3, 3, Seconds(10));
+    lsaR3->Setup({ifR2R3.GetAddress(0), ifR3R1.GetAddress(1)}, 3, interval);
     routers.Get(2)->AddApplication(lsaR3);
-    lsaR3->SetStartTime(Seconds(3));  // Slight offset
-    lsaR3->SetStopTime(Seconds(60));
+    lsaR3->SetStartTime(Seconds(3.0 + j3));
+    lsaR3->SetStopTime(Seconds(simEnd - 5.0));
 
     // =========================================================================
-    // Guidance for [W] questions: PCAP Capture for LSA Analysis
+    // Guidance for [C] questions: UDP sink on each router (LSA receiver)
+    // Each router listens on LSA_PORT (50001) so incoming LSA packets are
+    // silently consumed rather than generating ICMP Port Unreachable replies.
+    // Without this, the kernel returns ICMP Type 3 (Destination Unreachable)
+    // for every received LSA, since there is no socket bound to port 50001.
     //
-    // Wireshark analysis:
-    //   - Filter: "udp.port==50001" to see only LSA packets
-    //   - Observe periodic flooding (every 10 seconds)
-    //   - Each router sends to 2 neighbors
-    //   - LSA payload visible in packet data
+    // Real OSPF avoids this entirely by using IP protocol 89 directly, without
+    // a transport layer. Here we use UDP for simplicity and add a sink to keep
+    // the PCAP clean. Students filtering "udp.port==50001" will see only LSA
+    // floods, not ICMP errors.
     // =========================================================================
+    PacketSinkHelper lsaSink("ns3::UdpSocketFactory",
+                              InetSocketAddress(Ipv4Address::GetAny(), LSA_PORT));
+    ApplicationContainer sinkApps = lsaSink.Install(routers);
+    sinkApps.Start(Seconds(0));
+    sinkApps.Stop(Seconds(simEnd));
 
+    // =========================================================================
+    // PCAP capture
+    // Wireshark filter: "udp.port==50001"  -> shows only LSA floods
+    // =========================================================================
     if (g_pcapEnabled)
     {
         p2p.EnablePcap(outputPath + "ospf-like-r1r2", devR1R2.Get(0), true);
@@ -774,28 +808,30 @@ void RunOspfLikeScenario(const std::string& outputPath)
         p2p.EnablePcap(outputPath + "ospf-like-r3r1", devR3R1.Get(0), true);
     }
 
-    // Write topology information
     std::stringstream topoInfo;
     topoInfo << "OSPF-Like Scenario Topology\n";
     topoInfo << "=========================================\n\n";
-    topoInfo << "NOTE: This is an instructional OSPF approximation.\n";
-    topoInfo << "LSA port: " << LSA_PORT << " (to avoid DISCARD)\n\n";
+    topoInfo << "NOTE: Instructional OSPF approximation.\n";
+    topoInfo << "LSA port: " << LSA_PORT << " (not DISCARD port 9)\n\n";
+    topoInfo << "Effective parameters:\n";
+    topoInfo << "  seed        = " << cfg.seed         << "\n";
+    topoInfo << "  lsaInterval = " << cfg.lsaInterval  << " s\n\n";
     topoInfo << "Triangle Topology:\n";
     topoInfo << "        R1\n";
     topoInfo << "       /  \\\n";
     topoInfo << "      /    \\\n";
     topoInfo << "     R3----R2\n\n";
     topoInfo << "IP Addresses:\n";
-    topoInfo << "  R1-R2 link: 10.0.1.0/24 (R1=.1, R2=.2)\n";
-    topoInfo << "  R2-R3 link: 10.0.2.0/24 (R2=.1, R3=.2)\n";
-    topoInfo << "  R3-R1 link: 10.0.3.0/24 (R3=.1, R1=.2)\n\n";
+    topoInfo << "  R1-R2: 10.0.1.0/24 (R1=.1, R2=.2)\n";
+    topoInfo << "  R2-R3: 10.0.2.0/24 (R2=.1, R3=.2)\n";
+    topoInfo << "  R3-R1: 10.0.3.0/24 (R3=.1, R1=.2)\n\n";
     topoInfo << "LSA Flooding:\n";
-    topoInfo << "  Interval: 10 seconds\n";
-    topoInfo << "  Each router floods to 2 neighbors\n\n";
+    topoInfo << "  Interval: " << cfg.lsaInterval << " s\n";
+    topoInfo << "  Each router floods to 2 neighbours\n\n";
     topoInfo << "Wireshark filter: udp.port==" << LSA_PORT << "\n";
     WriteTopologyInfo(outputPath, topoInfo.str());
 
-    Simulator::Stop(Seconds(65));
+    Simulator::Stop(Seconds(simEnd));
     Simulator::Run();
     Simulator::Destroy();
 
@@ -809,23 +845,23 @@ void RunOspfLikeScenario(const std::string& outputPath)
 // =============================================================================
 //
 // Guidance for [C]/[B] questions:
-// This scenario demonstrates TTL field behavior:
 //   - Each router decrements TTL by 1
-//   - When TTL reaches 0, router drops packet and sends ICMP Time Exceeded
-//   - ICMP Time Exceeded is Type 11, Code 0
-//
-// Key code sections:
-//   - Socket::SetIpTtl() - sets initial TTL value
-//   - ICMP Type 11 generation is automatic by ns-3 IP stack
+//   - TTL=0: router drops packet and sends ICMP Time Exceeded (Type 11, Code 0)
+//   - Socket::SetIpTtl() sets the initial TTL value
 //
 // Wireshark hints:
 //   - Filter "icmp.type==11" for Time Exceeded messages
-//   - Filter "icmp" for all ICMP traffic
-//   - Check Protocol field = 1 (ICMP) in IPv4 header
-//   - ICMP Time Exceeded includes copy of original IP header
+//   - ICMP payload includes copy of original IP header + first 8 data bytes
+//   - Source IP of ICMP reply identifies the router that dropped the packet
+//
+// New parameter used here:
+//   cfg.ttlList  - comma-separated list of TTL values to test
+//                  default "1,2,3,4,64" reproduces original behaviour
+//   cfg.seed     - controls small timing jitter on send events (reproducible)
 // =============================================================================
 
-void RunTtlIcmpScenario(const std::string& outputPath)
+void
+RunTtlIcmpScenario(const std::string& outputPath, const LabConfig& cfg)
 {
     NS_LOG_INFO("=== Running TTL-ICMP Scenario ===");
 
@@ -834,196 +870,143 @@ void RunTtlIcmpScenario(const std::string& outputPath)
     std::cout << "TTL Expiry and ICMP Time Exceeded" << std::endl;
     std::cout << "========================================" << std::endl;
 
-    // =========================================================================
-    // Guidance for [C] questions: Linear Topology
-    // SRC -- R1 -- R2 -- R3 -- DST (4 hops)
-    // Packets with TTL=1 expire at R1
-    // Packets with TTL=2 expire at R2
-    // Packets with TTL=3 expire at R3
-    // Packets with TTL=4 reach DST
-    // =========================================================================
+    std::vector<uint32_t> ttls = ParseTtlList(cfg.ttlList);
 
-    NS_LOG_INFO("Creating nodes for TTL-ICMP scenario...");
+    // =========================================================================
+    // Linear topology: SRC -- R1 -- R2 -- R3 -- DST (4 hops)
+    //   TTL=1 expires at R1, TTL=2 at R2, TTL=3 at R3, TTL>=4 reaches DST
+    // =========================================================================
     NodeContainer allNodes;
     allNodes.Create(5);
 
     Ptr<Node> src = allNodes.Get(0);
-    Ptr<Node> r1 = allNodes.Get(1);
-    Ptr<Node> r2 = allNodes.Get(2);
-    Ptr<Node> r3 = allNodes.Get(3);
+    Ptr<Node> r1  = allNodes.Get(1);
+    Ptr<Node> r2  = allNodes.Get(2);
+    Ptr<Node> r3  = allNodes.Get(3);
     Ptr<Node> dst = allNodes.Get(4);
 
     Names::Add("SRC-TTL", src);
-    Names::Add("R1-TTL", r1);
-    Names::Add("R2-TTL", r2);
-    Names::Add("R3-TTL", r3);
+    Names::Add("R1-TTL",  r1);
+    Names::Add("R2-TTL",  r2);
+    Names::Add("R3-TTL",  r3);
     Names::Add("DST-TTL", dst);
 
-    // Create point-to-point links
     PointToPointHelper p2p;
     p2p.SetDeviceAttribute("DataRate", StringValue("100Mbps"));
     p2p.SetChannelAttribute("Delay", StringValue("2ms"));
 
     NetDeviceContainer devSrcR1 = p2p.Install(src, r1);
-    NetDeviceContainer devR1R2 = p2p.Install(r1, r2);
-    NetDeviceContainer devR2R3 = p2p.Install(r2, r3);
+    NetDeviceContainer devR1R2  = p2p.Install(r1, r2);
+    NetDeviceContainer devR2R3  = p2p.Install(r2, r3);
     NetDeviceContainer devR3Dst = p2p.Install(r3, dst);
 
-    // Install Internet stack
     InternetStackHelper internet;
     internet.Install(allNodes);
 
     // =========================================================================
-    // Guidance for [C]/[B] questions: IP Address Assignment
-    // Each hop is a separate subnet
-    // These addresses appear in ICMP Time Exceeded source field
+    // Guidance for [C]/[B] questions: IP address assignment
+    // These addresses appear in the ICMP Time Exceeded source field.
     // =========================================================================
-
     Ipv4AddressHelper ipv4;
-
     ipv4.SetBase("10.1.1.0", "255.255.255.0");
-    Ipv4InterfaceContainer ifSrcR1 = ipv4.Assign(devSrcR1);
-
+    ipv4.Assign(devSrcR1);
     ipv4.SetBase("10.1.2.0", "255.255.255.0");
-    Ipv4InterfaceContainer ifR1R2 = ipv4.Assign(devR1R2);
-
+    ipv4.Assign(devR1R2);
     ipv4.SetBase("10.1.3.0", "255.255.255.0");
-    Ipv4InterfaceContainer ifR2R3 = ipv4.Assign(devR2R3);
-
+    ipv4.Assign(devR2R3);
     ipv4.SetBase("10.1.4.0", "255.255.255.0");
     Ipv4InterfaceContainer ifR3Dst = ipv4.Assign(devR3Dst);
 
     Ipv4GlobalRoutingHelper::PopulateRoutingTables();
 
-    // =========================================================================
-    // Guidance for [C]/[B] questions: TTL Configuration
-    // We create UDP sockets and explicitly set TTL using SetIpTtl()
-    //
-    // TTL=1: Expires at R1 (first router)
-    // TTL=2: Expires at R2 (second router)
-    // TTL=3: Expires at R3 (third router)
-    // TTL=4: Reaches DST
-    //
-    // When TTL expires, router sends ICMP Time Exceeded (Type 11, Code 0)
-    // The ICMP message includes the original IP header + first 8 bytes
-    // =========================================================================
-
-    uint16_t destPort = DATA_PORT;  // Using safe port (not DISCARD)
-    Ipv4Address destAddr = ifR3Dst.GetAddress(1);  // DST address
-
-    // Create UDP server at destination
+    // UDP server at DST (receives packets that survive the full path)
     PacketSinkHelper sinkHelper("ns3::UdpSocketFactory",
-                                 InetSocketAddress(Ipv4Address::GetAny(), destPort));
+                                InetSocketAddress(Ipv4Address::GetAny(), DATA_PORT));
     ApplicationContainer serverApp = sinkHelper.Install(dst);
     serverApp.Start(Seconds(0));
-    serverApp.Stop(Seconds(30));
 
     // =========================================================================
-    // Guidance for [C] questions: Creating Low-TTL Packets
-    // Each socket is configured with a different TTL value
-    // Simulator::Schedule() sends packets at specific times
+    // Seed-driven timing jitter for send events.
+    // Packets still arrive in the same conceptual order; only timestamps shift.
     // =========================================================================
+    Ptr<UniformRandomVariable> jitter = CreateObject<UniformRandomVariable>();
+    jitter->SetAttribute("Min", DoubleValue(0.0));
+    jitter->SetAttribute("Max", DoubleValue(0.2));
 
-    // Send packet with TTL=1 (expires at R1)
-    Ptr<Socket> socket1 = Socket::CreateSocket(src, UdpSocketFactory::GetTypeId());
-    socket1->SetIpTtl(1);
-    Simulator::Schedule(Seconds(1), [socket1, destAddr, destPort]() {
-        socket1->Connect(InetSocketAddress(destAddr, destPort));
-        Ptr<Packet> packet = Create<Packet>(64);
-        socket1->Send(packet);
-        NS_LOG_INFO("Sent packet with TTL=1 (should expire at R1, generate ICMP from 10.1.1.2)");
-    });
-
-    // Send packet with TTL=2 (expires at R2)
-    Ptr<Socket> socket2 = Socket::CreateSocket(src, UdpSocketFactory::GetTypeId());
-    socket2->SetIpTtl(2);
-    Simulator::Schedule(Seconds(3), [socket2, destAddr, destPort]() {
-        socket2->Connect(InetSocketAddress(destAddr, destPort));
-        Ptr<Packet> packet = Create<Packet>(64);
-        socket2->Send(packet);
-        NS_LOG_INFO("Sent packet with TTL=2 (should expire at R2, generate ICMP from 10.1.2.2)");
-    });
-
-    // Send packet with TTL=3 (expires at R3)
-    Ptr<Socket> socket3 = Socket::CreateSocket(src, UdpSocketFactory::GetTypeId());
-    socket3->SetIpTtl(3);
-    Simulator::Schedule(Seconds(5), [socket3, destAddr, destPort]() {
-        socket3->Connect(InetSocketAddress(destAddr, destPort));
-        Ptr<Packet> packet = Create<Packet>(64);
-        socket3->Send(packet);
-        NS_LOG_INFO("Sent packet with TTL=3 (should expire at R3, generate ICMP from 10.1.3.2)");
-    });
-
-    // Send packet with TTL=4 (reaches destination)
-    Ptr<Socket> socket4 = Socket::CreateSocket(src, UdpSocketFactory::GetTypeId());
-    socket4->SetIpTtl(4);
-    Simulator::Schedule(Seconds(7), [socket4, destAddr, destPort]() {
-        socket4->Connect(InetSocketAddress(destAddr, destPort));
-        Ptr<Packet> packet = Create<Packet>(64);
-        socket4->Send(packet);
-        NS_LOG_INFO("Sent packet with TTL=4 (should reach DST)");
-    });
-
-    // Send packet with TTL=64 (normal, reaches destination)
-    Ptr<Socket> socket5 = Socket::CreateSocket(src, UdpSocketFactory::GetTypeId());
-    socket5->SetIpTtl(64);
-    Simulator::Schedule(Seconds(9), [socket5, destAddr, destPort]() {
-        socket5->Connect(InetSocketAddress(destAddr, destPort));
-        Ptr<Packet> packet = Create<Packet>(64);
-        socket5->Send(packet);
-        NS_LOG_INFO("Sent packet with TTL=64 (normal TTL, should reach DST)");
-    });
+    Ipv4Address destAddr = ifR3Dst.GetAddress(1);
+    double      baseTime = 1.0;
+    double      step     = 2.0;
 
     // =========================================================================
-    // Guidance for [W] questions: PCAP Capture Points
-    //
-    // Wireshark analysis for TTL-ICMP:
-    //   - Filter "icmp.type==11" to see only Time Exceeded messages
-    //   - Filter "icmp.type==11 && icmp.code==0" for TTL exceeded in transit
-    //   - Check the source IP of ICMP reply = router that dropped packet
-    //   - ICMP payload contains original IP header (check original TTL=0)
-    //   - Protocol field in IPv4 header = 1 (ICMP)
+    // Guidance for [C] questions: one socket per TTL value.
+    // Socket::SetIpTtl() overrides the default OS TTL for that socket.
     // =========================================================================
-
-    if (g_pcapEnabled)
+    for (size_t i = 0; i < ttls.size(); ++i)
     {
-        // Capture at source to see outgoing packets and incoming ICMP errors
-        p2p.EnablePcap(outputPath + "ttl-icmp-src", devSrcR1.Get(0), true);
-        // Capture at each router
-        p2p.EnablePcap(outputPath + "ttl-icmp-r1", devSrcR1.Get(1), true);
-        p2p.EnablePcap(outputPath + "ttl-icmp-r2", devR1R2.Get(1), true);
-        p2p.EnablePcap(outputPath + "ttl-icmp-r3", devR2R3.Get(1), true);
-        // Capture at destination
-        p2p.EnablePcap(outputPath + "ttl-icmp-dst", devR3Dst.Get(1), true);
+        uint32_t ttlVal  = ttls[i];
+        double   sendAt  = baseTime + i * step + jitter->GetValue();
+
+        Ptr<Socket> sock = Socket::CreateSocket(src, UdpSocketFactory::GetTypeId());
+        sock->SetIpTtl(ttlVal);
+
+        Simulator::Schedule(Seconds(sendAt), [sock, destAddr, ttlVal]() {
+            sock->Connect(InetSocketAddress(destAddr, DATA_PORT));
+            Ptr<Packet> pkt = Create<Packet>(64);
+            sock->Send(pkt);
+            NS_LOG_INFO("Sent TTL=" << ttlVal << " packet");
+        });
     }
 
-    // Write topology information
+    double simEnd = baseTime + ttls.size() * step + 6.0;
+    serverApp.Stop(Seconds(simEnd));
+
+    // =========================================================================
+    // PCAP capture
+    // Wireshark filters:
+    //   "icmp.type==11"                 - Time Exceeded
+    //   "icmp.type==11 && icmp.code==0" - TTL exceeded in transit
+    // =========================================================================
+    if (g_pcapEnabled)
+    {
+        p2p.EnablePcap(outputPath + "ttl-icmp-src", devSrcR1.Get(0), true);
+        p2p.EnablePcap(outputPath + "ttl-icmp-r1",  devSrcR1.Get(1), true);
+        p2p.EnablePcap(outputPath + "ttl-icmp-r2",  devR1R2.Get(1),  true);
+        p2p.EnablePcap(outputPath + "ttl-icmp-r3",  devR2R3.Get(1),  true);
+        p2p.EnablePcap(outputPath + "ttl-icmp-dst",  devR3Dst.Get(1), true);
+    }
+
     std::stringstream topoInfo;
     topoInfo << "TTL-ICMP Scenario Topology\n";
     topoInfo << "=========================================\n\n";
-    topoInfo << "Linear Topology (4 hops):\n";
+    topoInfo << "Effective parameters:\n";
+    topoInfo << "  seed    = " << cfg.seed    << "\n";
+    topoInfo << "  ttlList = " << cfg.ttlList << "\n\n";
+    topoInfo << "Linear Topology (4 hops SRC->DST):\n";
     topoInfo << "  [SRC]----[R1]----[R2]----[R3]----[DST]\n";
     topoInfo << "  10.1.1.1  .2|.1   .2|.1   .2|.1   .2\n\n";
     topoInfo << "IP Addresses:\n";
     topoInfo << "  SRC: 10.1.1.1\n";
-    topoInfo << "  R1:  10.1.1.2 (to SRC), 10.1.2.1 (to R2)\n";
-    topoInfo << "  R2:  10.1.2.2 (to R1), 10.1.3.1 (to R3)\n";
-    topoInfo << "  R3:  10.1.3.2 (to R2), 10.1.4.1 (to DST)\n";
+    topoInfo << "  R1:  10.1.1.2 / 10.1.2.1\n";
+    topoInfo << "  R2:  10.1.2.2 / 10.1.3.1\n";
+    topoInfo << "  R3:  10.1.3.2 / 10.1.4.1\n";
     topoInfo << "  DST: 10.1.4.2\n\n";
-    topoInfo << "TTL Test Packets:\n";
-    topoInfo << "  t=1s: TTL=1, expires at R1 (ICMP from 10.1.1.2)\n";
-    topoInfo << "  t=3s: TTL=2, expires at R2 (ICMP from 10.1.2.2)\n";
-    topoInfo << "  t=5s: TTL=3, expires at R3 (ICMP from 10.1.3.2)\n";
-    topoInfo << "  t=7s: TTL=4, reaches DST\n";
-    topoInfo << "  t=9s: TTL=64, reaches DST (normal)\n\n";
-    topoInfo << "Wireshark filters:\n";
-    topoInfo << "  icmp.type==11         - Time Exceeded messages\n";
-    topoInfo << "  icmp.type==11 && icmp.code==0 - TTL exceeded in transit\n";
-    topoInfo << "  icmp                  - All ICMP traffic\n\n";
-    topoInfo << "ICMP Time Exceeded source IPs identify routers on path.\n";
+    topoInfo << "TTL test packets:\n";
+    for (size_t i = 0; i < ttls.size(); ++i)
+    {
+        uint32_t t = ttls[i];
+        topoInfo << "  TTL=" << t << ": ";
+        if      (t == 1) topoInfo << "expires at R1 (ICMP from 10.1.1.2)\n";
+        else if (t == 2) topoInfo << "expires at R2 (ICMP from 10.1.2.2)\n";
+        else if (t == 3) topoInfo << "expires at R3 (ICMP from 10.1.3.2)\n";
+        else             topoInfo << "reaches DST\n";
+    }
+    topoInfo << "\nWireshark filters:\n";
+    topoInfo << "  icmp.type==11                   - Time Exceeded\n";
+    topoInfo << "  icmp.type==11 && icmp.code==0   - TTL exceeded in transit\n";
+    topoInfo << "  icmp                            - All ICMP\n";
     WriteTopologyInfo(outputPath, topoInfo.str());
 
-    Simulator::Stop(Seconds(15));
+    Simulator::Stop(Seconds(simEnd));
     Simulator::Run();
     Simulator::Destroy();
 
@@ -1034,66 +1017,101 @@ void RunTtlIcmpScenario(const std::string& outputPath)
 // MAIN FUNCTION
 // =============================================================================
 
-int main(int argc, char* argv[])
+int
+main(int argc, char* argv[])
 {
-    std::string scenario = "lsdv";
-    std::string mode = "ls";  // For lsdv: "ls" or "dv"
-    int pcap = 0;
-    bool verbose = false;
+    LabConfig cfg;
 
     // =========================================================================
-    // Guidance for [C] questions: Command-line Argument Parsing
-    // --scenario: selects which scenario to run (lsdv, ospf-like, ttl-icmp)
-    // --pcap: enables PCAP capture (required for Wireshark analysis)
-    // --mode: for lsdv scenario, selects Link State (ls) or Distance Vector (dv)
+    // Guidance for [C] questions: command-line argument parsing
+    //
+    // Original parameters (backward-compatible defaults):
+    //   --scenario   lsdv | ospf-like | ttl-icmp
+    //   --mode       ls | dv           (lsdv scenario only)
+    //   --pcap       0 | 1
+    //   --verbose    true | false
+    //
+    // New parameters (all have defaults matching original behaviour):
+    //   --seed         RNG seed for reproducibility
+    //   --r3r4Metric   cost of R3-R4 link (default 10 = original)
+    //   --r2r4Metric   cost of R2-R4 link (default 1 = original)
+    //   --lsaInterval  LSA flooding period in seconds (default 10 = original)
+    //   --failureTime  R2-R4 failure time in seconds (default 40 = original)
+    //   --pingInterval ICMP Echo Request interval in seconds (default 1 = original)
+    //   --ttlList      comma-separated TTL values (default "1,2,3,4,64" = original)
     // =========================================================================
 
     CommandLine cmd(__FILE__);
-    cmd.AddValue("scenario", "Scenario: lsdv, ospf-like, ttl-icmp", scenario);
-    cmd.AddValue("mode", "For lsdv scenario: ls (Link State) or dv (Distance Vector)", mode);
-    cmd.AddValue("pcap", "Enable PCAP capture (0 or 1)", pcap);
-    cmd.AddValue("verbose", "Enable verbose logging", verbose);
+    cmd.AddValue("scenario",     "Scenario: lsdv, ospf-like, ttl-icmp",         cfg.scenario);
+    cmd.AddValue("mode",         "For lsdv: ls (Link State) or dv (Distance Vector)", cfg.mode);
+    cmd.AddValue("pcap",         "Enable PCAP capture (0 or 1)",                 cfg.pcap);
+    cmd.AddValue("verbose",      "Enable verbose logging",                        cfg.verbose);
+    cmd.AddValue("seed",         "RNG seed (integer, default 100)",               cfg.seed);
+    cmd.AddValue("r3r4Metric",   "Cost of R3-R4 link (positive integer)",         cfg.r3r4Metric);
+    cmd.AddValue("r2r4Metric",   "Cost of R2-R4 link (positive integer)",         cfg.r2r4Metric);
+    cmd.AddValue("lsaInterval",  "OSPF-like LSA interval in seconds (positive)",  cfg.lsaInterval);
+    cmd.AddValue("failureTime",  "Time of R2-R4 link failure in seconds (positive)", cfg.failureTime);
+    cmd.AddValue("pingInterval", "ICMP Echo Request interval in seconds (positive)", cfg.pingInterval);
+    cmd.AddValue("ttlList",      "Comma-separated TTL values, e.g. 1,2,3,4,64",  cfg.ttlList);
     cmd.Parse(argc, argv);
 
-    g_pcapEnabled = (pcap == 1);
+    // =========================================================================
+    // Input validation
+    // =========================================================================
+    if (cfg.scenario != "lsdv" && cfg.scenario != "ospf-like" && cfg.scenario != "ttl-icmp")
+    {
+        std::cerr << "ERROR: Invalid scenario '" << cfg.scenario << "'. "
+                     "Valid: lsdv, ospf-like, ttl-icmp" << std::endl;
+        return 1;
+    }
+    if (cfg.scenario == "lsdv" && cfg.mode != "ls" && cfg.mode != "dv")
+    {
+        std::cerr << "ERROR: Invalid mode '" << cfg.mode << "'. Valid: ls, dv" << std::endl;
+        return 1;
+    }
+    if (cfg.r3r4Metric  <= 0) { std::cerr << "ERROR: r3r4Metric must be positive"  << std::endl; return 1; }
+    if (cfg.r2r4Metric  <= 0) { std::cerr << "ERROR: r2r4Metric must be positive"  << std::endl; return 1; }
+    // RIP (DV mode) uses infinity = 16.  The full path cost via R3 is
+    // 1 (SRC->R1) + 1 (R1->R3) + r3r4Metric (R3->R4) + 1 (R4->DST) = 3 + r3r4Metric.
+    // If 3 + r3r4Metric >= 16 (i.e. r3r4Metric >= 13) RIP considers that path
+    // unreachable, so after the R2-R4 failure DV mode will NEVER converge.
+    // LS (GlobalRouting) uses Dijkstra and has no such limit.
+    if (cfg.scenario == "lsdv" && cfg.mode == "dv" && cfg.r3r4Metric >= 13)
+    {
+        std::cerr << "WARNING: r3r4Metric=" << cfg.r3r4Metric
+                  << " >= 13 in DV mode: total path cost via R3 would be "
+                  << (3 + cfg.r3r4Metric) << " >= RIP infinity (16).\n"
+                  << "         The backup path will be UNREACHABLE — DV will not converge"
+                     " after the R2-R4 link fails.\n"
+                  << "         For DV experiments use r3r4Metric <= 12.\n";
+    }
+    if (cfg.lsaInterval <= 0) { std::cerr << "ERROR: lsaInterval must be positive" << std::endl; return 1; }
+    if (cfg.failureTime <= 0) { std::cerr << "ERROR: failureTime must be positive"  << std::endl; return 1; }
+    if (cfg.pingInterval<= 0) { std::cerr << "ERROR: pingInterval must be positive" << std::endl; return 1; }
 
-    if (verbose)
+    // =========================================================================
+    // Set RNG seed for reproducibility.
+    // Same seed -> identical output.  Different seed -> slightly different
+    // packet timestamps (jitter) but same topology and routing decisions.
+    // =========================================================================
+    RngSeedManager::SetSeed(cfg.seed);
+
+    g_pcapEnabled = (cfg.pcap == 1);
+
+    if (cfg.verbose)
     {
         LogComponentEnable("RoutingLab", LOG_LEVEL_INFO);
-        LogComponentEnable("Rip", LOG_LEVEL_INFO);
-        LogComponentEnable("Ping", LOG_LEVEL_INFO);
-    }
-
-    // Validate scenario
-    if (scenario != "lsdv" && scenario != "ospf-like" && scenario != "ttl-icmp")
-    {
-        std::cerr << "Invalid scenario: " << scenario << std::endl;
-        std::cerr << "Valid scenarios: lsdv, ospf-like, ttl-icmp" << std::endl;
-        return 1;
-    }
-
-    // Validate mode for lsdv
-    if (scenario == "lsdv" && mode != "ls" && mode != "dv")
-    {
-        std::cerr << "Invalid mode for lsdv: " << mode << std::endl;
-        std::cerr << "Valid modes: ls (Link State), dv (Distance Vector)" << std::endl;
-        return 1;
+        LogComponentEnable("Rip",        LOG_LEVEL_INFO);
+        LogComponentEnable("Ping",       LOG_LEVEL_INFO);
     }
 
     std::cout << "=== ns-3 Routing Lab (Lab 4) ===" << std::endl;
-    std::cout << "Scenario: " << scenario << std::endl;
-    if (scenario == "lsdv")
-    {
-        std::cout << "Mode: " << (mode == "ls" ? "Link State" : "Distance Vector") << std::endl;
-    }
-    std::cout << "PCAP enabled: " << (g_pcapEnabled ? "yes" : "no") << std::endl;
-
+    PrintEffectiveConfig(cfg);
     if (!g_pcapEnabled)
     {
-        std::cout << "Note: Use --pcap=1 to enable PCAP capture for Wireshark analysis" << std::endl;
+        std::cout << "Note: Use --pcap=1 to enable PCAP capture for Wireshark" << std::endl;
     }
 
-    // Create main output directory
     EnsureDirectory(g_outputDir);
 
     bool success = true;
@@ -1101,78 +1119,58 @@ int main(int argc, char* argv[])
     // =========================================================================
     // Run selected scenario
     // =========================================================================
-
-    if (scenario == "lsdv")
+    if (cfg.scenario == "lsdv")
     {
         std::string outputPath = g_outputDir + "lsdv/";
         EnsureDirectory(outputPath);
-
-        bool useLinkState = (mode == "ls");
-        RunLsdvScenario(outputPath, useLinkState);
-
+        RunLsdvScenario(outputPath, (cfg.mode == "ls"), cfg);
         if (g_pcapEnabled)
-        {
-            // PCAP files use node names: prefix-NodeName-DeviceIndex.pcap
-            success = success && VerifyPcapFile(outputPath + "lsdv-src-r1-SRC-0.pcap");
-        }
+            success = VerifyPcapFile(outputPath + "lsdv-src-r1-SRC-0.pcap") && success;
     }
-    else if (scenario == "ospf-like")
+    else if (cfg.scenario == "ospf-like")
     {
         std::string outputPath = g_outputDir + "ospf-like/";
         EnsureDirectory(outputPath);
-
-        RunOspfLikeScenario(outputPath);
-
+        RunOspfLikeScenario(outputPath, cfg);
         if (g_pcapEnabled)
-        {
-            // PCAP files use node names: prefix-NodeName-DeviceIndex.pcap
-            success = success && VerifyPcapFile(outputPath + "ospf-like-r1r2-R1-0.pcap");
-        }
+            success = VerifyPcapFile(outputPath + "ospf-like-r1r2-R1-0.pcap") && success;
     }
-    else if (scenario == "ttl-icmp")
+    else if (cfg.scenario == "ttl-icmp")
     {
         std::string outputPath = g_outputDir + "ttl-icmp/";
         EnsureDirectory(outputPath);
-
-        RunTtlIcmpScenario(outputPath);
-
+        RunTtlIcmpScenario(outputPath, cfg);
         if (g_pcapEnabled)
-        {
-            // PCAP files use node names: prefix-NodeName-DeviceIndex.pcap
-            success = success && VerifyPcapFile(outputPath + "ttl-icmp-src-SRC-TTL-0.pcap");
-        }
+            success = VerifyPcapFile(outputPath + "ttl-icmp-src-SRC-TTL-0.pcap") && success;
     }
 
     std::cout << std::endl;
     std::cout << "=== Simulation Complete ===" << std::endl;
-    std::cout << "Output directory: " << g_outputDir << std::endl;
+    std::cout << "Output: " << g_outputDir << std::endl;
 
     std::cout << std::endl;
-    std::cout << "=== Wireshark Analysis Hints ===" << std::endl;
-    if (scenario == "lsdv")
+    std::cout << "=== Wireshark Hints ===" << std::endl;
+    if (cfg.scenario == "lsdv")
     {
-        std::cout << "- Filter 'rip' to see RIP update messages (DV mode)" << std::endl;
-        std::cout << "- Filter 'icmp' to see ping traffic" << std::endl;
-        std::cout << "- Check routing-tables.txt for convergence analysis" << std::endl;
+        std::cout << "  rip             - RIP update messages (DV mode)" << std::endl;
+        std::cout << "  icmp            - Ping traffic" << std::endl;
+        std::cout << "  routing-tables.txt - convergence snapshots" << std::endl;
+        if (cfg.r3r4Metric == cfg.r2r4Metric)
+            std::cout << "  NOTE: equal-cost experiment - both paths may be used" << std::endl;
     }
-    else if (scenario == "ospf-like")
+    else if (cfg.scenario == "ospf-like")
     {
-        std::cout << "- Filter 'udp.port==" << LSA_PORT << "' to see LSA packets" << std::endl;
-        std::cout << "- Observe periodic LSA flooding (every 10 seconds)" << std::endl;
-        std::cout << "- LSA payload contains Router ID and neighbors" << std::endl;
+        std::cout << "  udp.port==" << LSA_PORT << "  - LSA packets" << std::endl;
+        std::cout << "  LSA interval: " << cfg.lsaInterval << " s" << std::endl;
     }
-    else if (scenario == "ttl-icmp")
+    else if (cfg.scenario == "ttl-icmp")
     {
-        std::cout << "- Filter 'icmp.type==11' for Time Exceeded messages" << std::endl;
-        std::cout << "- Source IP of ICMP reply identifies the router" << std::endl;
-        std::cout << "- Protocol field = 1 indicates ICMP" << std::endl;
+        std::cout << "  icmp.type==11   - Time Exceeded" << std::endl;
+        std::cout << "  TTLs tested: " << cfg.ttlList << std::endl;
     }
 
     if (!g_pcapEnabled)
-    {
-        std::cout << std::endl;
-        std::cout << "WARNING: PCAP capture was disabled. Use --pcap=1 for Wireshark analysis." << std::endl;
-    }
+        std::cout << "WARNING: PCAP disabled. Add --pcap=1 for Wireshark files." << std::endl;
     else if (!success)
     {
         std::cerr << "ERROR: One or more PCAP files failed verification!" << std::endl;
